@@ -8,6 +8,7 @@ import {
 } from "./chapter.js";
 import { playSound, speak, stopSpeaking } from "../utils/sound.js";
 import "./BakeryChapter.css";
+import Workbench from "./GuidedWorkbench.jsx";
 
 function Shop({ progress }) {
   return (
@@ -58,237 +59,6 @@ function Shop({ progress }) {
   );
 }
 
-function ObjectToken({ item, label, onClick, selected, glow, ...props }) {
-  return (
-    <button
-      className={`bk-token ${selected ? "selected" : ""} ${glow ? "glowing" : ""}`}
-      aria-label={label}
-      aria-pressed={selected || false}
-      onClick={onClick}
-      {...props}
-    >
-      {item}
-    </button>
-  );
-}
-
-function Workbench({ task, active, update, finish, say, chime }) {
-  const [selected, setSelected] = useState(null);
-  const [message, setMessage] = useState("");
-  const [shake, setShake] = useState(0);
-  const done = active.moved.length === taskGoal(task);
-  const remaining = task.initial - active.moved.length;
-  const sourceCount = task.type === "take" ? task.initial : taskGoal(task);
-  const sourceIds = Array.from({ length: sourceCount }, (_, i) => i).filter(
-    (id) => !active.moved.includes(id),
-  );
-  const destCount =
-    task.type === "take"
-      ? active.moved.length
-      : task.initial + active.moved.length;
-  const hints = [
-    task.type === "take"
-      ? `從${task.source}選一個${task.name}，再點${task.destination}，送出${taskGoal(task)}個。`
-      : `先點${task.source}裡的一個${task.name}，再點${task.destination}。`,
-    task.type === "fill"
-      ? `看看虛線空位。每個空位放一個，再補${taskGoal(task) - active.moved.length}個就滿了。`
-      : task.type === "take"
-        ? `已經送出${active.moved.length}個，還要送${taskGoal(task) - active.moved.length}個。`
-        : `一個一個移過去。我們要把${task.change}個都放進去。`,
-    done
-      ? taskExplanation(task)
-      : `一起做：點一下發光的${task.name}，再點右邊的大盤子。`,
-  ];
-  function transfer(id) {
-    setSelected(null);
-    if (done || active.moved.includes(id) || !sourceIds.includes(id)) return;
-    chime();
-    const next = [...active.moved, id];
-    update({ moved: next });
-    const completedMove = next.length === taskGoal(task);
-    const count =
-      task.type === "take"
-        ? task.initial - next.length
-        : task.initial + next.length;
-    const text = completedMove
-      ? task.type === "fill"
-        ? "空位都補好了！"
-        : `現在有${count}個。一起選出數量吧！`
-      : `移好一個了！${task.type === "take" ? `還剩${count}個。` : `現在有${count}個。`}`;
-    setMessage(text);
-    say(text);
-  }
-  function drop(event) {
-    event.preventDefault();
-    const raw = event.dataTransfer.getData("text/plain");
-    if (/^\d+$/.test(raw)) transfer(Number(raw));
-  }
-  function choose(value) {
-    if (value === taskAnswer(task)) finish();
-    else {
-      setShake((n) => n + 1);
-      setMessage("我們一起數一數，再試一次。");
-      update({ help: Math.min(3, active.help + 1) });
-      say("我們一起數一數，再試一次。");
-    }
-  }
-  function help() {
-    const next = Math.min(3, active.help + 1);
-    update({ help: next });
-    const text = hints[next - 1];
-    setMessage(text);
-    say(text);
-  }
-  const count = task.type === "take" ? remaining : destCount;
-  return (
-    <div className="bk-workbench">
-      <div className="bk-transfer-layout">
-        <section className="bk-source-zone" aria-label={task.source}>
-          <h3>① {task.source}</h3>
-          <div className="bk-token-area">
-            {sourceIds.map((id, i) => (
-              <ObjectToken
-                key={id}
-                item={task.item}
-                label={`選取${task.name} ${id + 1}`}
-                selected={selected === id}
-                glow={active.help > 0 && i === 0 && !done}
-                draggable={!done}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData("text/plain", String(id));
-                  setSelected(id);
-                }}
-                onClick={() => {
-                  if (done) {
-                    setMessage("已經送夠了，我們看看剩下的數量。");
-                    return;
-                  }
-                  chime();
-                  setSelected(id);
-                  setMessage(`選好了！再點右邊的${task.destination}。`);
-                }}
-              />
-            ))}
-            {sourceIds.length === 0 && (
-              <span className="bk-empty">都移好了 ✨</span>
-            )}
-          </div>
-          <span className="bk-zone-note">
-            {task.type === "take"
-              ? `要送出 ${task.change} 個`
-              : "點一個，或拖到右邊"}
-          </span>
-        </section>
-        <span className="bk-transfer-arrow" aria-hidden="true">
-          →
-        </span>
-        <section
-          className="bk-destination-zone"
-          aria-label={task.destination}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={drop}
-        >
-          <h3>② {task.destination}</h3>
-          <button
-            className={`bk-drop-area ${selected !== null ? "ready" : ""}`}
-            aria-label={`放到${task.destination}`}
-            aria-disabled={done}
-            onClick={() => {
-              if (selected !== null) transfer(selected);
-              else if (!done) {
-                setMessage("先點左邊的一個點心，再點這裡。");
-                say("先點左邊的一個點心，再點這裡。");
-              }
-            }}
-          >
-            {task.type === "fill" ? (
-              Array.from({ length: task.target }, (_, i) => (
-                <span
-                  key={i}
-                  className={`bk-slot ${i < destCount ? "filled" : ""}`}
-                >
-                  {i < destCount ? task.item : <small>放這裡</small>}
-                </span>
-              ))
-            ) : (
-              <>
-                {Array.from({ length: destCount }, (_, i) => (
-                  <span className="bk-placed-token" key={i}>
-                    {task.item}
-                  </span>
-                ))}
-                {!destCount && <span className="bk-empty">點這裡放進來</span>}
-              </>
-            )}
-          </button>
-          <span className="bk-zone-note">
-            {task.type === "fill"
-              ? `每個空位放一個 · 共 ${task.target} 格`
-              : "選好後，點這個大盤子"}
-          </span>
-        </section>
-      </div>
-      <p className="bk-action-message" role="status">
-        {message || "慢慢來，點心會在這裡等你。"}
-      </p>
-      {done && (
-        <div className="bk-answer-panel">
-          <h3>
-            {task.type === "take"
-              ? "左邊還剩幾個？"
-              : task.type === "fill"
-                ? "空位都補滿了！"
-                : "右邊一共有幾個？"}
-          </h3>
-          {task.type === "fill" ? (
-            <button className="bk-primary" onClick={finish}>
-              補滿了！看看發生什麼事 ✨
-            </button>
-          ) : (
-            <div className="bk-number-choices" key={shake}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  aria-label={`答案 ${n}`}
-                  onClick={() => choose(n)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="bk-help-row">
-        <button className="bk-secondary" onClick={help}>
-          💡 陪我一起做
-        </button>
-        <button
-          className="bk-secondary"
-          onClick={() => {
-            if (!done) {
-              const text = "先把點心移好，再一起數一數。";
-              setMessage(text);
-              say(text);
-              return;
-            }
-            const text = `${Array.from({ length: count }, (_, i) => i + 1).join("，")}。${task.type === "take" ? "還剩" : "一共有"}${count}個${task.name}。`;
-            setMessage(text);
-            say(text);
-          }}
-        >
-          👆 一起數一數
-        </button>
-      </div>
-      {active.help > 0 && (
-        <div className="bk-hint" role="note">
-          {hints[active.help - 1]}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function FreeBake({ say, chime }) {
   const [count, setCount] = useState(0);
   const [item, setItem] = useState("🥐");
@@ -297,7 +67,9 @@ function FreeBake({ say, chime }) {
     if (next < 0 || next > 5) return;
     setCount(next);
     chime();
-    say(`${delta > 0 ? "加進" : "拿走"}一個，現在有${next}個。`);
+    say(
+      `${delta > 0 ? "加進" : "拿走"}一個，現在有${next}個。${next === 5 ? "烤盤滿了，可以點減號送一個給朋友。" : ""}`,
+    );
   }
   return (
     <section className="bk-free-bake">
@@ -326,14 +98,14 @@ function FreeBake({ say, chime }) {
       </p>
       <div className="bk-help-row">
         <button
-          className="bk-secondary"
+          className={`bk-secondary ${count === 5 ? "bk-guided" : ""}`}
           disabled={count === 0}
           onClick={() => change(-1)}
         >
           − 送出一個
         </button>
         <button
-          className="bk-primary"
+          className={`bk-primary ${count < 5 ? "bk-guided" : ""}`}
           disabled={count === 5}
           onClick={() => change(1)}
         >
@@ -375,7 +147,24 @@ export default function BakeryChapter({
           ? taskExplanation(task)
           : task.prompt
     : "";
-  const currentKey = `${active?.episodeId}-${active?.step}-${phase}-${tab}`;
+  const navInstruction = episode
+    ? phase === "intro"
+      ? "聽完故事，點下面亮亮的綠色按鈕，我們一起幫忙。"
+      : phase === "success"
+        ? "你做到了！點綠色箭頭，繼續看看。"
+        : phase === "ending"
+          ? "點綠色禮物按鈕，收下禮物。"
+          : ""
+    : justEarned
+      ? "禮物放好囉！點綠色小房子，看看我們的店。"
+      : tab === "story"
+        ? unlocked === 5
+          ? "麵包店開張了！點小房子可以布置，點可頌可以自由烘焙。"
+          : "我是阿栗！點亮亮的綠色按鈕，我帶你一起玩。聽不清楚時，可以點小狐狸。"
+        : tab === "decorate"
+          ? "點顏色換遮陽棚，點禮物可以擺放。玩好了，點綠色書本回故事。"
+          : "點綠色加號，烤一個點心。點減號，就能送出一個。";
+  const currentKey = `${active?.episodeId}-${active?.step}-${phase}-${tab}-${showHub}`;
   const completeLock = useRef(false);
   function say(text) {
     if (progress.voice) speak(text);
@@ -394,16 +183,31 @@ export default function BakeryChapter({
     };
   }, []);
   useEffect(() => {
+    dialog.current?.scrollTo({ top: 0, behavior: "instant" });
+    const frame = requestAnimationFrame(() => {
+      if (phase === "play") {
+        dialog.current
+          ?.querySelector(".bk-answer-panel")
+          ?.scrollIntoView({ block: "nearest", behavior: "instant" });
+      } else
+        dialog.current
+          ?.querySelector(".bk-guided:not(:disabled)")
+          ?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [currentKey]);
+  useEffect(() => {
     completeLock.current = false;
     focusTarget.current?.focus();
     const timer = setTimeout(() => {
-      if (progress.voice && prompt) speak(prompt);
+      if (progress.voice && phase !== "play")
+        speak(`${prompt} ${navInstruction}`);
     }, 150);
     return () => {
       clearTimeout(timer);
       stopSpeaking();
     };
-  }, [currentKey, prompt, progress.voice]);
+  }, [currentKey, prompt, progress.voice, navInstruction, phase]);
   function update(patch) {
     setProgress((p) =>
       p.active ? { ...p, active: { ...p.active, ...patch } } : p,
@@ -411,6 +215,7 @@ export default function BakeryChapter({
   }
   function start(ep) {
     chime();
+    if (progress.voice) speak(ep.intro);
     setJustEarned(null);
     setShowHub(false);
     setProgress((p) => ({
@@ -478,6 +283,8 @@ export default function BakeryChapter({
   return (
     <div
       className="bk-overlay"
+      data-phase={episode ? phase : "hub"}
+      data-reward={!!justEarned}
       ref={dialog}
       role="dialog"
       aria-modal="true"
@@ -551,7 +358,7 @@ export default function BakeryChapter({
               <button
                 aria-label="再聽一次故事"
                 disabled={!progress.voice}
-                onClick={() => say(prompt)}
+                onClick={() => say(`${prompt} ${navInstruction}`)}
               >
                 🔊
               </button>
@@ -560,7 +367,7 @@ export default function BakeryChapter({
               <div className="bk-story-start">
                 <Shop progress={progress} />
                 <button
-                  className="bk-primary"
+                  className="bk-primary bk-guided"
                   onClick={() => {
                     chime();
                     update({ phase: "play" });
@@ -582,6 +389,7 @@ export default function BakeryChapter({
                   finish={finish}
                   say={say}
                   chime={chime}
+                  voice={progress.voice}
                 />
               </>
             )}
@@ -606,7 +414,7 @@ export default function BakeryChapter({
                   ))}
                 </div>
                 <p>{taskExplanation(task)}</p>
-                <button className="bk-primary" onClick={next}>
+                <button className="bk-primary bk-guided" onClick={next}>
                   {active.step + 1 < episode.tasks.length
                     ? "接著幫下一個忙 →"
                     : "看看故事結尾 →"}
@@ -623,7 +431,7 @@ export default function BakeryChapter({
                   得到「{rewards.find((r) => r.id === episode.reward).name}
                   」，放進我們的店。
                 </p>
-                <button className="bk-primary" onClick={claim}>
+                <button className="bk-primary bk-guided" onClick={claim}>
                   收下禮物，回到麵包店 🎁
                 </button>
                 <p className="bk-fine-print">
@@ -662,6 +470,20 @@ export default function BakeryChapter({
                 {justEarned.location}！去「我的麵包店」看看。
               </div>
             )}
+            {justEarned && (
+              <div className="bk-gift-next">
+                <button
+                  className="bk-primary bk-guided"
+                  onClick={() => {
+                    stopSpeaking();
+                    setTab("decorate");
+                    setJustEarned(null);
+                  }}
+                >
+                  🏡 看看我的禮物 →
+                </button>
+              </div>
+            )}
             {tab === "story" && (
               <>
                 <div className="bk-hub-hero">
@@ -680,7 +502,7 @@ export default function BakeryChapter({
                     </p>
                     {active ? (
                       <button
-                        className="bk-primary"
+                        className="bk-primary bk-guided"
                         onClick={() => setShowHub(false)}
                       >
                         接著完成上次的小幫忙 →
@@ -688,7 +510,7 @@ export default function BakeryChapter({
                     ) : (
                       unlocked < 5 && (
                         <button
-                          className="bk-primary"
+                          className="bk-primary bk-guided"
                           onClick={() => start(episodes[unlocked])}
                         >
                           {unlocked === 0
@@ -824,6 +646,16 @@ export default function BakeryChapter({
                   {notice || "點禮物擺放或收起；每件禮物都有自己的位置。"}
                 </p>
               </>
+            )}
+            {tab === "decorate" && (
+              <div className="bk-gift-next">
+                <button
+                  className="bk-primary bk-guided"
+                  onClick={() => setTab("story")}
+                >
+                  📖 回到故事冒險 →
+                </button>
+              </div>
             )}
             {tab === "free" && <FreeBake say={say} chime={chime} />}
             <div className="bk-hub-footer">

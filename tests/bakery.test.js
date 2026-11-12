@@ -104,3 +104,18 @@ test("malformed movement cannot skip a task or duplicate an object", () => {
   });
   assert.deepEqual(duplicate.active.moved, [0]);
 });
+
+test("non-reading guide advances one action at a time without pointing at a numeric answer", async () => {
+  const { nextGuide, taskObjective } = await import(
+    "../src/bakery/guidance.js"
+  );
+  for (const task of episodes.flatMap((e) => e.tasks)) {
+    assert.equal(nextGuide(task, 0, null).target, "source");
+    assert.equal(nextGuide(task, 0, 0).target, "destination");
+    assert.equal(
+      nextGuide(task, taskGoal(task), null).target,
+      task.type === "fill" ? "confirm" : "answers",
+    );
+    assert(taskObjective(task).length > 0);
+  }
+});

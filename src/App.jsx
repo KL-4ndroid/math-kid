@@ -84,6 +84,21 @@ export default function App() {
             <i>✧</i>
           </h1>
           <p>點一座小島，和數學一起玩！</p>
+          <button
+            className="bk-home-play"
+            aria-label="跟阿栗一起玩"
+            onClick={() => {
+              playSound();
+              setBakeryOpen(true);
+            }}
+          >
+            <span aria-hidden="true">🦊</span>
+            <span>
+              <strong>▶ 跟阿栗一起玩</strong>
+              <small>阿栗會說故事、指路，陪你一步一步做</small>
+            </span>
+            <span aria-hidden="true">👆</span>
+          </button>
         </section>
         <section className="world" aria-label="可以旋轉的三維浮空島地圖">
           <SceneBoundary>
