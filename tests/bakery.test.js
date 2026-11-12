@@ -1,0 +1,106 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  episodes,
+  rewards,
+  taskGoal,
+  taskAnswer,
+} from "../src/bakery/chapter.js";
+import { freshProgress, validateProgress } from "../src/bakery/progress.js";
+
+test("five connected stories provide ten valid, concrete tasks within five", () => {
+  assert.equal(episodes.length, 5);
+  assert.equal(episodes.flatMap((e) => e.tasks).length, 10);
+  assert.equal(new Set(episodes.map((e) => e.id)).size, 5);
+  assert.deepEqual(
+    new Set(episodes.flatMap((e) => e.tasks.map((t) => t.type))),
+    new Set(["merge", "take", "fill"]),
+  );
+  for (const episode of episodes) {
+    assert(rewards.some((r) => r.id === episode.reward));
+    for (const task of episode.tasks) {
+      assert(
+        Number.isInteger(task.initial) && task.initial > 0 && task.initial <= 5,
+      );
+      assert(taskGoal(task) > 0 && taskGoal(task) <= 5);
+      assert(taskAnswer(task) >= 1 && taskAnswer(task) <= 5);
+      if (task.type === "take") assert(taskGoal(task) < task.initial);
+    }
+  }
+});
+
+test("invalid storage does not unlock stories or grant decorations", () => {
+  assert.deepEqual(validateProgress(null), freshProgress());
+  assert.deepEqual(validateProgress({ version: 99 }), freshProgress());
+  const result = validateProgress({
+    version: 1,
+    completed: ["party"],
+    placed: ["lamp"],
+    active: { episodeId: "party", step: 0 },
+  });
+  assert.deepEqual(result.completed, []);
+  assert.deepEqual(result.placed, []);
+  assert.equal(result.active, null);
+});
+
+test("mid-task movement, hints and preferences survive serialization", () => {
+  const raw = {
+    ...freshProgress(),
+    completed: ["opening"],
+    placed: ["sign"],
+    color: "rose",
+    voice: false,
+    active: {
+      episodeId: "rabbit",
+      step: 0,
+      phase: "play",
+      moved: [0],
+      help: 2,
+    },
+  };
+  assert.deepEqual(validateProgress(JSON.parse(JSON.stringify(raw))), raw);
+});
+
+test("replaying a completed story keeps its earned progress", () => {
+  const result = validateProgress({
+    ...freshProgress(),
+    completed: episodes.map((e) => e.id),
+    placed: rewards.map((r) => r.id),
+    active: {
+      episodeId: "opening",
+      step: 0,
+      phase: "success",
+      moved: [0],
+      help: 0,
+    },
+  });
+  assert.equal(result.completed.length, 5);
+  assert.equal(result.placed.length, 5);
+  assert.equal(result.active.phase, "success");
+});
+
+test("malformed movement cannot skip a task or duplicate an object", () => {
+  const result = validateProgress({
+    ...freshProgress(),
+    active: {
+      episodeId: "opening",
+      step: 0,
+      phase: "success",
+      moved: [999, -1, "0"],
+      help: 0,
+    },
+  });
+  assert.equal(result.active.phase, "play");
+  assert.deepEqual(result.active.moved, []);
+  const duplicate = validateProgress({
+    ...freshProgress(),
+    active: {
+      episodeId: "opening",
+      step: 0,
+      phase: "play",
+      moved: [0, 0, 0],
+      help: 1,
+    },
+  });
+  assert.deepEqual(duplicate.active.moved, [0]);
+});
