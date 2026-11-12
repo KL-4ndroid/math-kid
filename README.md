@@ -4,6 +4,12 @@
 
 世界路線與原始規劃對照見 [WORLD_DESIGN.md](WORLD_DESIGN.md)，共同 3D 標準與首島精確規則見 [DEVELOPMENT_SPEC.md](DEVELOPMENT_SPEC.md)，首島 P0–P7 驗收及世界 W0–W7 擴展計畫見 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)。其他島、世界地圖、天空小屋、重玩變式及家長摘要仍是規劃，尚未新增到遊戲；舊版單題小島與刷題星星介面維持退役。
 
+## 交給 Cursor 或其他開發者
+
+從 [CURSOR_HANDOFF.md](CURSOR_HANDOFF.md) 開始：包括最新可玩範圍、已認可的 UI／3D、整季故事與劇情推進、各島任務製作表、森林首段的分鏡／數值／互動／存檔契約、建議檔案分工，以及可直接貼給 Cursor 的開工指令。
+
+下一個目標是「森林車站的第一顆芽」。先依 C1–C8 串接世界導航與相容存檔，再完成種植三盆、重排後數量仍為三的完整故事。這份計畫不代表森林已上線；即時狀態統一看 [DEVELOPMENT_PLAN.md 第 18 節](DEVELOPMENT_PLAN.md#18-cursor-接手計畫與下一輪工作板2026-11-13)。
+
 ## 啟動與檢查
 
 建議使用 Node.js 22.12+。

@@ -1,0 +1,15 @@
+---
+description: Magic Math Islands story, implementation plan, and protected project baseline
+alwaysApply: true
+---
+
+# 魔法數學浮空島接手規則
+
+- 修改前閱讀根目錄 AGENTS.md、CURSOR_HANDOFF.md、WORLD_DESIGN.md、DEVELOPMENT_SPEC.md、DEVELOPMENT_PLAN.md，檢查最新 Git 與既有異動。
+- CURSOR_HANDOFF 是接手快照與詳細故事／工程契約；即時狀態與驗證只更新 DEVELOPMENT_PLAN，第 18 節為 C1–C8 工作板。不要把未來製作表當成已存在功能，也不要重做工作板中已完成的項目。
+- 使用者已認可目前麵包店的 3D 與兒童 UI。沿用程序化 3D、直接觸控拖曳、語音、示範、鍵盤與備援；不恢復舊單題小島、不改框架、不以 Emoji／CSS 圖形替代場景道具。
+- 保留 bakery v1、五段十任務、獎勵與 placed；世界資料另建版本與適配器。新島與舊首島 ID、規則、保存責任分開。
+- 下一個完整交付是 forest/sprout：一對一種植三盆、同三盆重排後數量仍為三、角色回應、保存修復與停止點。按 C1–C8 相依順序從第一個未完成工作包開始；不要一次做所有島或只做空殼導航。
+- 最新使用者指令優先。重大世界／數值變更同步文件；例行可逆實作按已授權方向完成，不逐項索取確認。推送、部署及重設資料依使用者當次授權與環境規則。
+- 程式變更執行相應測試、npm test、npm run build 與診斷；重大互動驗證手機／平板、觸控／滑鼠／鍵盤、續玩、語音、減少動態與 WebGL 備援。純文件不重跑遊戲測試。
+- 真機 FPS、幼兒理解和中文語音品質若未測就明列；不得把模擬尺寸、編譯成功或使用者喜歡外觀當成正式驗收。
