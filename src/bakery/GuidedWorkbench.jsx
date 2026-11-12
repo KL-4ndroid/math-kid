@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { taskGoal, taskAnswer } from "./chapter.js";
 import { nextGuide, taskObjective } from "./guidance.js";
+import FoxBuddy, { useVoiceActivity } from "./FoxBuddy.jsx";
+import { snackFlightFrames } from "./motion.js";
 import { stopSpeaking } from "../utils/sound.js";
 
 function Demo({ item, name, destination, say, onClose }) {
@@ -44,6 +47,13 @@ export default function GuidedWorkbench({
   chime,
   voice,
 }) {
+  const [flight, setFlight] = useState(null);
+  const [landed, setLanded] = useState(null);
+  const sources = useRef(new Map());
+  const arriving = useRef();
+  const flying = useRef();
+  const flightLock = useRef(false);
+  const speaking = useVoiceActivity();
   const [selected, setSelected] = useState(null);
   const [message, setMessage] = useState("");
   const [demo, setDemo] = useState(false);
@@ -57,7 +67,9 @@ export default function GuidedWorkbench({
   const sayRef = useRef(say);
   sayRef.current = say;
   const done = active.moved.length === taskGoal(task);
-  const guide = nextGuide(task, active.moved.length, selected);
+  const guide = flight
+    ? { target: "moving", text: "點心搬過去囉！", key: "moving" }
+    : nextGuide(task, active.moved.length, selected);
   const sourceIds = Array.from(
     { length: task.type === "take" ? task.initial : taskGoal(task) },
     (_, i) => i,
@@ -68,28 +80,28 @@ export default function GuidedWorkbench({
       : task.initial + active.moved.length;
   const resultCount = task.type === "take" ? sourceIds.length : destCount;
   useEffect(() => {
-    if (done && !demo)
+    if (done && !demo && !flight)
       answerPanel.current?.scrollIntoView({
         block: "nearest",
         behavior: "instant",
       });
-  }, [done, demo]);
+  }, [done, demo, flight]);
   function clearCounting() {
     countTimers.current.forEach(clearTimeout);
     countTimers.current = [];
   }
   useEffect(() => () => clearCounting(), []);
   useEffect(() => {
-    if (demo || counting) return;
+    if (demo || counting || flight) return;
     const timer = setTimeout(() => {
       sayRef.current(
         `${active.moved.length === 0 && selected === null ? taskObjective(task) : ""}${guide.text}`,
       );
     }, 180);
     return () => clearTimeout(timer);
-  }, [guide.key, demo, counting, voice]);
+  }, [guide.key, demo, counting, voice, flight]);
   useEffect(() => {
-    if (demo || counting || idleReminders.current >= 2) return;
+    if (demo || counting || flight || idleReminders.current >= 2) return;
     const timer = setTimeout(() => {
       if (
         document.visibilityState !== "visible" ||
@@ -103,18 +115,58 @@ export default function GuidedWorkbench({
       );
     }, 14000);
     return () => clearTimeout(timer);
-  }, [guide.key, activity, demo, counting, voice]);
+  }, [guide.key, activity, demo, counting, voice, flight]);
   function touch() {
     setActivity((n) => n + 1);
   }
+  useLayoutEffect(() => {
+    if (!flight) return;
+    const target = arriving.current;
+    const ghost = flying.current;
+    function arrive() {
+      flightLock.current = false;
+      setLanded(flight.index);
+      setFlight(null);
+      setMessage("放好了！");
+    }
+    if (!target || !ghost || typeof ghost.animate !== "function") {
+      arrive();
+      return;
+    }
+    const animation = ghost.animate(
+      snackFlightFrames(flight.from, target.getBoundingClientRect()),
+      { duration: 480, easing: "ease-in-out", fill: "forwards" },
+    );
+    animation.onfinish = arrive;
+    return () => {
+      animation.onfinish = null;
+      animation.cancel();
+    };
+  }, [flight]);
   function transfer(id) {
+    if (
+      flightLock.current ||
+      done ||
+      active.moved.includes(id) ||
+      !sourceIds.includes(id)
+    )
+      return;
+    const from = sources.current.get(id)?.getBoundingClientRect();
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (from && !reduceMotion) {
+      flightLock.current = true;
+      setLanded(null);
+      setFlight({ from, index: destCount });
+    } else setLanded(destCount);
     setSelected(null);
-    if (done || active.moved.includes(id) || !sourceIds.includes(id)) return;
     chime();
     update({ moved: [...active.moved, id] });
-    setMessage("搬好了！");
+    setMessage("點心搬過去囉！");
   }
   function startCount() {
+    if (flightLock.current) return;
     touch();
     if (!done) {
       setDemo(true);
@@ -146,6 +198,7 @@ export default function GuidedWorkbench({
     );
   }
   function choose(value) {
+    if (flightLock.current) return;
     touch();
     if (counting) return;
     if (value === taskAnswer(task)) finish();
@@ -157,6 +210,7 @@ export default function GuidedWorkbench({
     }
   }
   function showDemo() {
+    if (flightLock.current) return;
     touch();
     clearCounting();
     setCounting(false);
@@ -165,9 +219,31 @@ export default function GuidedWorkbench({
     if (done) startCount();
     else setDemo(true);
   }
+  const arrivalClass = (i) =>
+    `${flight?.index === i ? " bk-in-flight" : ""}${landed === i ? " bk-just-landed" : ""}`;
   const countableClass = (i) => (countIndex === i ? " bk-counting-now" : "");
   return (
-    <div className="bk-workbench" onPointerDown={touch} onKeyDown={touch}>
+    <div
+      className="bk-workbench"
+      data-moving={!!flight}
+      onPointerDown={touch}
+      onKeyDown={touch}
+    >
+      {flight &&
+        createPortal(
+          <span
+            ref={flying}
+            className="bk-flying-snack"
+            aria-hidden="true"
+            style={{
+              left: flight.from.left + flight.from.width / 2 - 23,
+              top: flight.from.top + flight.from.height / 2 - 23,
+            }}
+          >
+            {task.item}
+          </span>,
+          document.body,
+        )}
       <div className="bk-child-guide" role="status">
         <button
           className="bk-coach-fox"
@@ -177,7 +253,8 @@ export default function GuidedWorkbench({
             say(guide.text);
           }}
         >
-          🦊<small>🔊</small>
+          <FoxBuddy size="small" speaking={speaking} />
+          <small>🔊</small>
         </button>
         <div>
           <small>{taskObjective(task)}</small>
@@ -207,6 +284,11 @@ export default function GuidedWorkbench({
                 {sourceIds.map((id, i) => (
                   <button
                     key={id}
+                    ref={(node) => {
+                      if (node) sources.current.set(id, node);
+                      else sources.current.delete(id);
+                    }}
+                    disabled={!!flight}
                     className={`bk-token ${selected === id ? "selected" : ""} ${guide.target === "source" && i === 0 ? "bk-guided glowing" : ""}${done && task.type === "take" ? countableClass(i) : ""}`}
                     aria-label={`選取${task.name} ${id + 1}`}
                     aria-pressed={selected === id}
@@ -254,7 +336,8 @@ export default function GuidedWorkbench({
               <button
                 className={`bk-drop-area ${selected !== null ? "ready" : ""} ${guide.target === "destination" ? "bk-guided" : ""}`}
                 aria-label={`放到${task.destination}`}
-                aria-disabled={done}
+                aria-disabled={done || !!flight}
+                disabled={!!flight}
                 onClick={() => {
                   if (selected !== null) transfer(selected);
                   else if (done && task.type !== "take") startCount();
@@ -268,7 +351,8 @@ export default function GuidedWorkbench({
                   Array.from({ length: task.target }, (_, i) => (
                     <span
                       key={i}
-                      className={`bk-slot ${i < destCount ? "filled" : ""}${countableClass(i)}`}
+                      ref={flight?.index === i ? arriving : null}
+                      className={`bk-slot ${i < destCount ? "filled" : ""}${countableClass(i)}${arrivalClass(i)}`}
                     >
                       {i < destCount ? task.item : <small>＋</small>}
                       {countIndex === i && (
@@ -281,7 +365,8 @@ export default function GuidedWorkbench({
                     {Array.from({ length: destCount }, (_, i) => (
                       <span
                         key={i}
-                        className={`bk-placed-token${task.type !== "take" ? countableClass(i) : ""}`}
+                        ref={flight?.index === i ? arriving : null}
+                        className={`bk-placed-token${task.type !== "take" ? countableClass(i) : ""}${arrivalClass(i)}`}
                       >
                         {task.item}
                         {countIndex === i && task.type !== "take" && (
@@ -300,7 +385,7 @@ export default function GuidedWorkbench({
               </span>
             </section>
           </div>
-          {done && (
+          {done && !flight && (
             <div
               ref={answerPanel}
               className={`bk-answer-panel ${guide.target === "answers" ? "bk-answer-guide" : ""}`}
@@ -322,7 +407,7 @@ export default function GuidedWorkbench({
                     <button
                       key={n}
                       aria-label={`答案 ${n}`}
-                      disabled={counting}
+                      disabled={counting || !!flight}
                       onClick={() => choose(n)}
                     >
                       <span>{n}</span>
@@ -338,10 +423,18 @@ export default function GuidedWorkbench({
             </div>
           )}
           <div className="bk-help-row">
-            <button className="bk-secondary bk-show-demo" onClick={showDemo}>
+            <button
+              className="bk-secondary bk-show-demo"
+              disabled={!!flight}
+              onClick={showDemo}
+            >
               <span aria-hidden="true">👆▶</span> 看我做
             </button>
-            <button className="bk-secondary" onClick={startCount}>
+            <button
+              className="bk-secondary"
+              disabled={!!flight}
+              onClick={startCount}
+            >
               🔢 一起數一數
             </button>
           </div>

@@ -5,6 +5,7 @@ import { islandsData } from "./data/islandsData.js";
 import { playSound, stopSpeaking } from "./utils/sound.js";
 import "./App.css";
 import BakeryChapter from "./bakery/BakeryChapter.jsx";
+import FoxBuddy from "./bakery/FoxBuddy.jsx";
 import { useBakeryProgress } from "./bakery/progress.js";
 
 const STORAGE_KEY = "magic-math-islands-progress-v1";
@@ -92,7 +93,9 @@ export default function App() {
               setBakeryOpen(true);
             }}
           >
-            <span aria-hidden="true">🦊</span>
+            <span aria-hidden="true">
+              <FoxBuddy size="medium" mood="welcome" />
+            </span>
             <span>
               <strong>▶ 跟阿栗一起玩</strong>
               <small>阿栗會說故事、指路，陪你一步一步做</small>
@@ -114,7 +117,9 @@ export default function App() {
           className="bakery-invitation"
           aria-labelledby="bakery-invite-title"
         >
-          <span aria-hidden="true">🦊</span>
+          <span aria-hidden="true">
+            <FoxBuddy size="medium" mood="welcome" />
+          </span>
           <div>
             <small>全新故事第一章 · 五段溫暖的小冒險</small>
             <h2 id="bakery-invite-title">陪阿栗，開一家麵包店</h2>

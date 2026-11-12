@@ -9,6 +9,7 @@ import {
 import { playSound, speak, stopSpeaking } from "../utils/sound.js";
 import "./BakeryChapter.css";
 import Workbench from "./GuidedWorkbench.jsx";
+import FoxBuddy, { Celebration, useVoiceActivity } from "./FoxBuddy.jsx";
 
 function Shop({ progress }) {
   return (
@@ -34,15 +35,16 @@ function Shop({ progress }) {
             🥖 🥐<span>{progress.placed.includes("lamp") ? "⭐" : "🍞"}</span>
           </div>
           <div className="bk-door">
-            🦊<small>歡迎光臨</small>
+            <FoxBuddy size="small" mood="welcome" />
+            <small>歡迎光臨</small>
           </div>
         </div>
       </div>
       {progress.placed.includes("flowers") && (
-        <div className="bk-shop-flower">🌷🪴</div>
+        <div className="bk-shop-flower bk-decor-reveal">🌷🪴</div>
       )}
       {progress.placed.includes("table") && (
-        <div className="bk-shop-table">
+        <div className="bk-shop-table bk-decor-reveal">
           ☕<span>━</span>
           <small>╱ ╲</small>
         </div>
@@ -89,12 +91,18 @@ function FreeBake({ say, chime }) {
       </div>
       <div className="bk-free-tray" aria-label={`盤子裡有${count}個點心`}>
         {Array.from({ length: count }, (_, i) => (
-          <span key={i}>{item}</span>
+          <span className="bk-new-bake" key={`${item}-${i}`}>
+            {item}
+          </span>
         ))}
         {!count && <small>你的烤盤準備好了</small>}
       </div>
       <p className="bk-free-count" aria-live="polite">
-        現在有 <strong>{count}</strong> 個
+        現在有{" "}
+        <strong key={count} className="bk-count-change">
+          {count}
+        </strong>{" "}
+        個
       </p>
       <div className="bk-help-row">
         <button
@@ -128,6 +136,7 @@ export default function BakeryChapter({
   const [tab, setTab] = useState("story");
   const [showHub, setShowHub] = useState(false);
   const [notice, setNotice] = useState("");
+  const speaking = useVoiceActivity();
   const [justEarned, setJustEarned] = useState(null);
   const dialog = useRef();
   const focusTarget = useRef();
@@ -172,6 +181,16 @@ export default function BakeryChapter({
   function chime(kind) {
     if (progress.voice) playSound(kind);
   }
+  useEffect(() => {
+    function escapeFromBody(event) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      stopSpeaking();
+      onClose();
+    }
+    document.addEventListener("keydown", escapeFromBody);
+    return () => document.removeEventListener("keydown", escapeFromBody);
+  }, [onClose]);
   useEffect(() => {
     const old = document.activeElement;
     const overflow = document.body.style.overflow;
@@ -349,7 +368,14 @@ export default function BakeryChapter({
             </div>
             <div className="bk-dialogue">
               <span className="bk-fox" aria-hidden="true">
-                🦊
+                <FoxBuddy
+                  speaking={speaking}
+                  mood={
+                    phase === "success" || phase === "ending"
+                      ? "happy"
+                      : "welcome"
+                  }
+                />
               </span>
               <div>
                 <strong>阿栗說</strong>
@@ -395,8 +421,9 @@ export default function BakeryChapter({
             )}
             {phase === "success" && (
               <section className="bk-success">
+                <Celebration />
                 <div className="bk-big-star" aria-hidden="true">
-                  🌟
+                  <FoxBuddy size="large" mood="happy" />
                 </div>
                 <h2>你做到了！</h2>
                 <div className="bk-equation" aria-label={taskExplanation(task)}>
@@ -423,6 +450,7 @@ export default function BakeryChapter({
             )}
             {phase === "ending" && (
               <section className="bk-ending">
+                <Celebration />
                 <span className="bk-reward-large">
                   {rewards.find((r) => r.id === episode.reward).emoji}
                 </span>

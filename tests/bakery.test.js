@@ -119,3 +119,13 @@ test("non-reading guide advances one action at a time without pointing at a nume
     assert(taskObjective(task).length > 0);
   }
 });
+
+test("snack flight uses real source and destination centers", async () => {
+  const { snackFlightFrames } = await import("../src/bakery/motion.js");
+  const from = { left: 10, top: 20, width: 60, height: 60 };
+  const to = { left: 210, top: 120, width: 60, height: 60 };
+  const frames = snackFlightFrames(from, to);
+  assert.equal(frames.length, 3);
+  assert.equal(frames[2].transform, "translate(200px, 100px) scale(1)");
+  assert.equal(frames[1].transform, "translate(100px, 12px) scale(1.12)");
+});
