@@ -10,10 +10,10 @@ export function workbenchLayout(width) {
       source: [0, 1.35, 1.5],
       target: [0, 1.35, -1.5],
       board: { position: [0, 0.98, 0], scale: [5.4, 0.35, 6] },
-      slot: i => [(i % 3 - 1) * 1.3, 0.13, Math.floor(i / 3) * 0.88 - 0.42],
+      slot: (i) => [((i % 3) - 1) * 1.3, 0.13, Math.floor(i / 3) * 0.88 - 0.42],
       hitRadius: 0.6,
       dropHalf: { x: 1.95, z: 1.45 },
-      fox: [-1.7, 0, 2.3],
+      fox: [-1.95, 0.5, 0],
     };
   }
   return {
@@ -22,7 +22,7 @@ export function workbenchLayout(width) {
     source: [-2.05, 1.35, 0],
     target: [2.05, 1.35, 0],
     board: { position: [0, 0.98, 0], scale: [8.2, 0.35, 3.25] },
-    slot: i => [(i % 3 - 1) * 0.98, 0.13, Math.floor(i / 3) * 0.88 - 0.42],
+    slot: (i) => [((i % 3) - 1) * 0.98, 0.13, Math.floor(i / 3) * 0.88 - 0.42],
     hitRadius: 0.5,
     dropHalf: { x: 1.9, z: 1.3 },
     fox: [-3.15, 0, -2],
@@ -36,11 +36,15 @@ export function slotPoint(layout, origin, index) {
 
 function normalize(vector) {
   const length = Math.hypot(...vector);
-  return vector.map(value => value / length);
+  return vector.map((value) => value / length);
 }
 
 function cross(a, b) {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
 }
 
 function dot(a, b) {
@@ -55,15 +59,20 @@ export function projectPoint(layout, point, viewport) {
   const depth = dot(offset, forward);
   const aspect = viewport.width / viewport.height;
   return {
-    x: viewport.width / 2 + (dot(offset, right) / depth) / (TAN_HALF_FOV * aspect) * (viewport.width / 2),
-    y: viewport.height / 2 - (dot(offset, up) / depth) / TAN_HALF_FOV * (viewport.height / 2),
+    x:
+      viewport.width / 2 +
+      (dot(offset, right) / depth / (TAN_HALF_FOV * aspect)) *
+        (viewport.width / 2),
+    y:
+      viewport.height / 2 -
+      (dot(offset, up) / depth / TAN_HALF_FOV) * (viewport.height / 2),
     depth,
   };
 }
 
 export function hitDiameterPixels(layout, point, viewport) {
   const { depth } = projectPoint(layout, point, viewport);
-  return (layout.hitRadius / depth) / TAN_HALF_FOV * viewport.height;
+  return (layout.hitRadius / depth / TAN_HALF_FOV) * viewport.height;
 }
 
 export function hitSpacingPixels(layout, origin, viewport) {

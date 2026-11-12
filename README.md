@@ -13,16 +13,26 @@ npm ci
 npm run dev
 npm test
 npm run test:browser
+npm run test:sample
 npm run build
 npm run preview
 ```
 
-建置產物位於 `dist/`，不需要帳號、API 金鑰或後端服務。瀏覽器回歸預設使用已安裝的 Microsoft Edge；可透過 `BAKERY_BROWSER` 指定 Playwright 的其他瀏覽器 channel。
+建置產物位於 `dist/`，不需要帳號、API 金鑰或後端服務。瀏覽器回歸預設使用已安裝的 Microsoft Edge；可透過 `BAKERY_BROWSER` 指定 Playwright 的其他瀏覽器 channel，或以 `BAKERY_EXECUTABLE_PATH` 指定已安裝的 Chromium 執行檔。例如 Linux：
+
+```bash
+BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser
+BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:sample
+```
+
+`test:browser` 驗證十個任務、續玩、輔助操作、減少動態觸控與中斷情境；`test:sample` 專測一般動態下，首段故事及招牌的原生觸控事件流程。
 
 ## 已接入的功能
 
 - 當前版本以首島麵包店為入口，五段短故事、十個數量任務及島內順序解鎖。
 - 程序化 3D 店面、六種點心、阿栗及三位朋友、五區故事背景。
+- 首島美術樣板：雙坡屋頂與遮陽棚、暖色霧面光影、圍裙狐狸、切痕麵包與彎月可頌、烤盤／展示盤／編織籃、廚房窗框與工作架。
+- 阿栗有呼吸、眨眼、引導與短暫成功動作；數數時降低動態，支援系統減少動態設定。
 - 點選或直接拖曳點心搬運，以及來源選取／放置的鍵盤等效控制。
 - 不改存檔的 3D 示範、逐個照亮數數、答錯再試、文字及語音引導。
 - 五件固定位置裝飾、三種遮陽棚顏色、0–5 個點心的自由烘焙。
@@ -32,10 +42,12 @@ npm run preview
 
 ## 目前首島驗證與限制
 
-以下為既有首島實作的歷史驗證記錄，不是本次文件修訂重新執行的測試，也不是全世界已完成的證據。
-
-規則、存檔及語音生命週期測試 14 項通過，正式建置通過。`npm run test:browser` 使用本機 Windows Edge 的無頭瀏覽器，在 390×844 與 1024×768 模擬尺寸完成全部十個任務與五次領獎，確認示範不修改存檔；另已驗證滑鼠拖放、外部放下、pointercancel、失焦、次要指標干擾、搬運提交後重載、答錯保留搬運、context lost 後輔助操作及停用 WebGL 的首個任務。這些中斷事件為自動化合成事件，不是多指實機驗證。數數會等待語音完成，照亮時機跟隨語音開始，靜音則保留逐項視覺引導。
+本輪執行紀錄及未驗收範圍見 [DEVELOPMENT_PLAN.md 第 16 節](DEVELOPMENT_PLAN.md#16-首島美術與互動樣板2026-11-12)。測試使用 Linux Chromium 的無頭瀏覽器，390×844 與 1024×768 為模擬尺寸。完整回歸涵蓋十個任務、五次領獎、自由烘焙、示範不改存檔、減少動態觸控與鍵盤等效操作；首段樣板另測一般動態的原生觸控拖曳／點放、取消、搬運後重載、逐個數數，以及多指取消與招牌安裝續存。滑鼠拖放、失焦、次要指標及 context lost 等邊界包含合成事件，不能代替實機測試。數數會等待語音完成，照亮時機跟隨語音開始，靜音保留逐項視覺引導。
 
 這些結果不是手機或平板實機證據。正式美術品質、角色完整表演、各任務專屬容器、預渲染備援、觸控命中尺寸、真實 context lost 復原、目標裝置 30 FPS 與 4–6 歲試玩仍未完成驗收；因此首島 P0–P7 尚不能全部標為完成；世界 W0–W7 的狀態另依開發計畫追蹤。建置目前仍有 JavaScript 區塊大於 500 kB 的警告。
 
 語音由瀏覽器 SpeechSynthesis 提供，音效由 Web Audio 合成；中文語音品質及可用性取決於裝置。模型為專案內程序化幾何，未下載外部圖片、模型或音訊。
+
+## 美術共用元件
+
+`ToyPrimitives.jsx` 提供暖色霧面基本體與燈光；`Pastries.jsx` 提供程序化麵包和可頌；`FoxModel.jsx` 管理阿栗造型、語音口型與短動作。工作台與總覽共用這些模型，數學、輸入、存檔規則仍由原有模組負責。本輪沿用 R3F／Drei／useFrame，未加入 GSAP、後製或外部模型素材。
