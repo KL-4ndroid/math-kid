@@ -26,6 +26,14 @@ try {
     });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    async function visibleInViewport(locator, minHeight = 56) {
+      const rect = await locator.boundingBox();
+      assert(rect && rect.height >= minHeight, "large enough touch control");
+      assert(
+        rect.y >= 0 && rect.y + rect.height <= viewport.height,
+        "next action visible without scrolling",
+      );
+    }
     const read = () =>
       page.evaluate(() =>
         JSON.parse(localStorage.getItem("magic-math-bakery-v1")),
@@ -96,9 +104,30 @@ try {
       await send(cancel ? "touchCancel" : "touchEnd", []);
     }
     await page.goto(server.resolvedUrls.local[0]);
+    await visibleInViewport(
+      page.getByRole("button", { name: "和阿栗一起開始" }),
+      80,
+    );
+    assert.equal(
+      await page.locator(".story-picker").evaluate((element) => element.open),
+      false,
+    );
+    assert.equal(
+      await page
+        .locator(".activity-tabs")
+        .getByRole("button", { name: "家長設定" })
+        .count(),
+      0,
+    );
     await page.getByRole("button", { name: "聲音開啟", exact: true }).tap();
     await page.getByRole("button", { name: "和阿栗一起開始" }).tap();
     await page.getByRole("button", { name: "我來幫忙" }).tap();
+    assert.equal(
+      await page
+        .locator(".assist-controls")
+        .evaluate((element) => element.open),
+      false,
+    );
     let points = await positions(0);
     await drag(points[0], points[1], true);
     assert.deepEqual((await read()).active.moved, []);
@@ -110,6 +139,11 @@ try {
     );
     await page.reload();
     await page.getByRole("button", { name: "繼續上次的小幫忙" }).tap();
+    for (const n of [1, 2, 3, 4, 5])
+      await visibleInViewport(
+        page.getByRole("button", { name: `答案 ${n}`, exact: true }),
+        80,
+      );
     await page.getByRole("button", { name: "答案 3", exact: true }).tap();
     assert.equal((await read()).active.phase, "success");
     await page.getByRole("button", { name: "接著幫下一個忙" }).tap();
@@ -122,9 +156,6 @@ try {
           .length === 1,
     );
     // Wait for the animation input lock using the existing accessible control.
-    await page
-      .getByRole("button", { name: "選第 2 個可頌", exact: true })
-      .waitFor();
     await page.waitForFunction(() =>
       [...document.querySelectorAll("button")].some(
         (button) => button.textContent === "選第 2 個可頌" && !button.disabled,
@@ -141,7 +172,8 @@ try {
     await page.waitForFunction(() =>
       [...document.querySelectorAll("button")].some(
         (button) =>
-          button.textContent === "補滿了，看看接下來的故事" && !button.disabled,
+          button.getAttribute("aria-label") === "補滿了，看看接下來的故事" &&
+          !button.disabled,
       ),
     );
     assert.deepEqual(await read(), beforeCount);
@@ -198,6 +230,16 @@ try {
     );
     await page.reload();
     assert((await read()).placed.includes("sign"));
+    const beforeSettings = await read();
+    await page.getByRole("button", { name: "家長設定", exact: true }).tap();
+    await page.getByRole("button", { name: "重新開始所有故事" }).tap();
+    assert.equal(
+      await page.locator(".game-surface").evaluate((element) => element.inert),
+      true,
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(await page.getByRole("alertdialog").count(), 0);
+    assert.deepEqual(await read(), beforeSettings);
     assert.deepEqual(errors, []);
     assert.equal(
       await page

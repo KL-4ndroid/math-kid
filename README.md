@@ -14,6 +14,7 @@ npm run dev
 npm test
 npm run test:browser
 npm run test:sample
+npm run test:ui
 npm run build
 npm run preview
 ```
@@ -23,9 +24,10 @@ npm run preview
 ```bash
 BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser
 BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:sample
+BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:ui
 ```
 
-`test:browser` 驗證十個任務、續玩、輔助操作、減少動態觸控與中斷情境；`test:sample` 專測一般動態下，首段故事及招牌的原生觸控事件流程。
+`test:browser` 驗證十個任務、續玩、輔助操作、減少動態觸控與中斷情境；`test:sample` 專測一般動態下，首段故事及招牌的原生觸控事件流程。`test:ui` 檢查四種尺寸的數字卡、成功／結尾重聽與通關後自由烘焙入口；極矮視窗允許捲動。可用 `npm run test:browser -- --input-only` 單獨重跑觸控、滑鼠、語音與 WebGL 備援分段，亦可用 `--desktop-only` 單獨檢查滑鼠、語音與 WebGL 備援。預設命令仍包含所有分段及十任務回歸。
 
 ## 已接入的功能
 
@@ -42,11 +44,17 @@ BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:sample
 
 ## 目前首島驗證與限制
 
-本輪執行紀錄及未驗收範圍見 [DEVELOPMENT_PLAN.md 第 16 節](DEVELOPMENT_PLAN.md#16-首島美術與互動樣板2026-11-12)。測試使用 Linux Chromium 的無頭瀏覽器，390×844 與 1024×768 為模擬尺寸。完整回歸涵蓋十個任務、五次領獎、自由烘焙、示範不改存檔、減少動態觸控與鍵盤等效操作；首段樣板另測一般動態的原生觸控拖曳／點放、取消、搬運後重載、逐個數數，以及多指取消與招牌安裝續存。滑鼠拖放、失焦、次要指標及 context lost 等邊界包含合成事件，不能代替實機測試。數數會等待語音完成，照亮時機跟隨語音開始，靜音保留逐項視覺引導。
+首島美術紀錄見 [DEVELOPMENT_PLAN.md 第 16 節](DEVELOPMENT_PLAN.md#16-首島美術與互動樣板2026-11-12)，幼兒介面改版與本輪驗證見 [第 17 節](DEVELOPMENT_PLAN.md#17-幼兒操作介面改版2026-11-12)。測試使用 Linux Chromium 的無頭瀏覽器，390×844 與 1024×768 為模擬尺寸。完整回歸涵蓋十個任務、五次領獎、自由烘焙、示範不改存檔、減少動態觸控與鍵盤等效操作；首段樣板另測一般動態的原生觸控拖曳／點放、取消、搬運後重載、逐個數數，以及多指取消與招牌安裝續存。滑鼠拖放、失焦、次要指標及 context lost 等邊界包含合成事件，不能代替實機測試。數數會等待語音完成，照亮時機跟隨語音開始，靜音保留逐項視覺引導。
 
 這些結果不是手機或平板實機證據。正式美術品質、角色完整表演、各任務專屬容器、預渲染備援、觸控命中尺寸、真實 context lost 復原、目標裝置 30 FPS 與 4–6 歲試玩仍未完成驗收；因此首島 P0–P7 尚不能全部標為完成；世界 W0–W7 的狀態另依開發計畫追蹤。建置目前仍有 JavaScript 區塊大於 500 kB 的警告。
 
 語音由瀏覽器 SpeechSynthesis 提供，音效由 Web Audio 合成；中文語音品質及可用性取決於裝置。模型為專案內程序化幾何，未下載外部圖片、模型或音訊。
+
+## 幼兒操作介面
+
+首頁突出「一起玩／繼續玩」，故事清單預設收起，家長設定與兒童活動分開。任務使用短指令、語音重播、圖示大按鈕及大型數字卡；寬螢幕把答案放在工作台旁，手機放在下方。鍵盤輔助控制可展開，3D 失敗時自動展開；重設進度仍需二次確認。介面改版不改故事數值或 v1 存檔，真機與幼兒理解仍待試玩驗收。
+
+`test:sample` 也檢查主要下一步的可視範圍、按鈕大小、預設收起的清單、設定確認取消及存檔保留。
 
 ## 美術共用元件
 

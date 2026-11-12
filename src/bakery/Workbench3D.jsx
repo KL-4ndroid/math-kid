@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, useState } from "react";
+import { Component, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Plane, Vector3 } from "three";
 import { Fox } from "./FoxModel.jsx";
@@ -11,13 +11,17 @@ import { workbenchLayout, slotPoint } from "./layout.js";
 
 function ContextGuard({ onLost }) {
   const { gl } = useThree();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const lost = (event) => {
       event.preventDefault();
       onLost();
     };
     gl.domElement.addEventListener("webglcontextlost", lost);
-    return () => gl.domElement.removeEventListener("webglcontextlost", lost);
+    gl.domElement.dataset.bakeryContextReady = "true";
+    return () => {
+      gl.domElement.removeEventListener("webglcontextlost", lost);
+      delete gl.domElement.dataset.bakeryContextReady;
+    };
   }, [gl, onLost]);
   return null;
 }
@@ -26,6 +30,9 @@ export class SceneBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+  componentDidCatch() {
+    this.props.onError?.();
   }
   render() {
     return this.state.failed ? (
@@ -412,12 +419,12 @@ export default function Workbench3D({
   }, [flight]);
   useEffect(() => () => onBusy(false), []);
   return (
-    <section aria-label={task.title}>
+    <section className="workbench" aria-label={task.title}>
       <div className="world-labels">
         <span>{task.source}</span>
         <span>{task.destination}</span>
       </div>
-      <SceneBoundary>
+      <SceneBoundary onError={() => setContextLost(true)}>
         <div className="workbench-canvas">
           {contextLost ? (
             <p role="status">
@@ -465,32 +472,37 @@ export default function Workbench3D({
       </SceneBoundary>
       <p className="instruction">
         {demo
-          ? "看小手示範，點心從來源移到盤子；看完點「換我玩」。"
+          ? "跟著小手看一遍。"
           : done
-            ? "放好囉！一起看看數量。"
+            ? "放好囉！"
             : selected !== null
               ? `點${task.destination}，放進去。`
-              : `按住${task.name}拖到${task.destination}，也可以先點再放。`}
+              : `拖進${task.destination}`}
       </p>
-      {scene === "kitchen" && (
-        <p className="status">
-          {done
-            ? "阿栗：謝謝你，點心準備好了！"
-            : selected !== null
-              ? `阿栗：選好了，放到${task.destination}吧。`
-              : `阿栗：從${task.source}選一個${task.name}，我陪你一起放。`}
-        </p>
-      )}
       {!flight && (
-        <p className="status" aria-live="polite">
-          {done
-            ? "搬運完成，可以一起數一數，再選數量卡。"
-            : "每次搬一個，慢慢來。"}
-          {countIndex >= 0 ? ` 正在數第 ${countIndex + 1} 個。` : ""}
+        <p
+          className={countIndex >= 0 ? "count-marker" : "sr-only"}
+          aria-live="polite"
+        >
+          {countIndex >= 0
+            ? `正在數第 ${countIndex + 1} 個。`
+            : done
+              ? "搬運完成，可以一起數一數，再選數量卡。"
+              : "每次搬一個，慢慢來。"}
         </p>
       )}
-      <details open>
+      <details className="assist-controls" open={contextLost || undefined}>
         <summary>鍵盤操作與輔助控制</summary>
+        <button
+          disabled={busy}
+          onClick={() =>
+            say(
+              `先選一個${task.name}，再點${task.destination}。也可以直接拖過去。`,
+            )
+          }
+        >
+          再聽操作方法
+        </button>
         <div className="controls">
           {availableSource(task, active.moved).map((id) => (
             <button
