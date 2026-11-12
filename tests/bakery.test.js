@@ -129,3 +129,21 @@ test("snack flight uses real source and destination centers", async () => {
   assert.equal(frames[2].transform, "translate(200px, 100px) scale(1)");
   assert.equal(frames[1].transform, "translate(100px, 12px) scale(1.12)");
 });
+
+test("touch drop accepts the whole tray and a small forgiving edge, but not the source", async () => {
+  const { isInsideDropZone } = await import("../src/bakery/touchGeometry.js");
+  const rect = { left: 200, right: 350, top: 300, bottom: 500 };
+  assert(isInsideDropZone(275, 400, rect));
+  assert(isInsideDropZone(195, 295, rect));
+  assert(!isInsideDropZone(100, 400, rect));
+  assert(!isInsideDropZone(275, 550, rect));
+  assert(!isInsideDropZone(275, 400, null));
+});
+
+test("touch guidance teaches direct dragging and keeps tap placement instructions", async () => {
+  const { nextGuide } = await import("../src/bakery/guidance.js");
+  const task = episodes[0].tasks[0];
+  assert(nextGuide(task, 0, null, { touch: true }).text.includes("拖進"));
+  assert(nextGuide(task, 0, 0, { touch: true }).text.includes("點亮亮"));
+  assert(nextGuide(task, 0, null).text.includes("點一個"));
+});

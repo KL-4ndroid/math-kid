@@ -401,7 +401,7 @@ export default function BakeryChapter({
                 >
                   我來幫忙！→
                 </button>
-                <p>點一個點心，再點盤子；也可以直接拖過去。</p>
+                <p>按住點心拖到盤子，或點一下點心再點盤子。</p>
               </div>
             )}
             {phase === "play" && (

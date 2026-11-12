@@ -7,7 +7,7 @@ export function taskObjective(task) {
     return `已有${task.initial}個${task.name}，把${task.target}格的盤子補滿。`;
   return `有${task.initial}個${task.name}，再放進${task.change}個。`;
 }
-export function nextGuide(task, moved, selected) {
+export function nextGuide(task, moved, selected, { touch = false } = {}) {
   if (moved >= taskGoal(task)) {
     return task.type === "fill"
       ? {
@@ -36,7 +36,9 @@ export function nextGuide(task, moved, selected) {
   return {
     target: "source",
     icon: "👆",
-    text: `點一個${task.name}${moved ? "，再移一次" : ""}。`,
+    text: touch
+      ? `按住${task.name}，拖進${task.destination}。`
+      : `點一個${task.name}${moved ? "，再移一次" : ""}。`,
     key: `source-${moved}`,
   };
 }

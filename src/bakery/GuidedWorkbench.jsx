@@ -3,18 +3,21 @@ import { createPortal } from "react-dom";
 import { taskGoal, taskAnswer } from "./chapter.js";
 import { nextGuide, taskObjective } from "./guidance.js";
 import FoxBuddy, { useVoiceActivity } from "./FoxBuddy.jsx";
+import useTouchDrag from "./useTouchDrag.jsx";
 import { snackFlightFrames } from "./motion.js";
 import { stopSpeaking } from "../utils/sound.js";
 
-function Demo({ item, name, destination, say, onClose }) {
+function Demo({ item, name, destination, say, onClose, touchMode }) {
   const sayRef = useRef(say);
   sayRef.current = say;
   useEffect(() => {
     sayRef.current(
-      `看我的小手。先點一個${name}，再點${destination}，點心就搬過去囉！看完，點綠色按鈕換你玩。`,
+      touchMode
+        ? `看我的小手。按住${name}，拖到${destination}，再放開。看完，點綠色按鈕換你玩。`
+        : `看我的小手。先點一個${name}，再點${destination}，點心就搬過去囉！看完，點綠色按鈕換你玩。`,
     );
     return () => stopSpeaking();
-  }, [name, destination]);
+  }, [name, destination, touchMode]);
   return (
     <section className="bk-demo" aria-label="操作示範">
       <h3>看阿栗做一次</h3>
@@ -30,7 +33,7 @@ function Demo({ item, name, destination, say, onClose }) {
         <div className="bk-demo-hand">👆</div>
         <div className="bk-demo-food">{item}</div>
       </div>
-      <p>① 點點心　→　② 點盤子</p>
+      <p>{touchMode ? "① 按住點心 → ② 拖到盤子放開" : "① 點點心 → ② 點盤子"}</p>
       <button className="bk-primary bk-guided" onClick={onClose}>
         ▶ 換我玩
       </button>
@@ -54,6 +57,8 @@ export default function GuidedWorkbench({
   const flying = useRef();
   const flightLock = useRef(false);
   const speaking = useVoiceActivity();
+  const dropZone = useRef();
+  const touchMode = navigator.maxTouchPoints > 0;
   const [selected, setSelected] = useState(null);
   const [message, setMessage] = useState("");
   const [demo, setDemo] = useState(false);
@@ -67,9 +72,34 @@ export default function GuidedWorkbench({
   const sayRef = useRef(say);
   sayRef.current = say;
   const done = active.moved.length === taskGoal(task);
-  const guide = flight
-    ? { target: "moving", text: "點心搬過去囉！", key: "moving" }
-    : nextGuide(task, active.moved.length, selected);
+  const touchDrag = useTouchDrag({
+    disabled: !!flight || done || demo || counting,
+    item: task.item,
+    destination: dropZone,
+    onStart: () => {
+      setSelected(null);
+      chime();
+      sayRef.current("拖進亮亮的盤子，再放開手指。");
+    },
+    onDrop: (id, from) => transfer(id, { from, duration: 180, lift: 8 }),
+    onCancel: () => {
+      setSelected(null);
+      setMessage("點心回原位了，再拖到盤子裡就可以。");
+      sayRef.current("沒關係，拖進亮亮的盤子再放開。");
+    },
+  });
+  const dragging = touchDrag.draggingId !== null;
+  const guide = dragging
+    ? {
+        target: "dragging",
+        text: touchDrag.overDrop
+          ? "放開手指，點心就放好了。"
+          : "拖進右邊亮亮的盤子。",
+        key: `dragging-${touchDrag.overDrop}`,
+      }
+    : flight
+      ? { target: "moving", text: "點心搬過去囉！", key: "moving" }
+      : nextGuide(task, active.moved.length, selected, { touch: touchMode });
   const sourceIds = Array.from(
     { length: task.type === "take" ? task.initial : taskGoal(task) },
     (_, i) => i,
@@ -92,16 +122,17 @@ export default function GuidedWorkbench({
   }
   useEffect(() => () => clearCounting(), []);
   useEffect(() => {
-    if (demo || counting || flight) return;
+    if (demo || counting || flight || dragging) return;
     const timer = setTimeout(() => {
       sayRef.current(
         `${active.moved.length === 0 && selected === null ? taskObjective(task) : ""}${guide.text}`,
       );
     }, 180);
     return () => clearTimeout(timer);
-  }, [guide.key, demo, counting, voice, flight]);
+  }, [guide.key, demo, counting, voice, flight, dragging]);
   useEffect(() => {
-    if (demo || counting || flight || idleReminders.current >= 2) return;
+    if (demo || counting || flight || dragging || idleReminders.current >= 2)
+      return;
     const timer = setTimeout(() => {
       if (
         document.visibilityState !== "visible" ||
@@ -115,7 +146,7 @@ export default function GuidedWorkbench({
       );
     }, 14000);
     return () => clearTimeout(timer);
-  }, [guide.key, activity, demo, counting, voice, flight]);
+  }, [guide.key, activity, demo, counting, voice, flight, dragging]);
   function touch() {
     setActivity((n) => n + 1);
   }
@@ -134,8 +165,12 @@ export default function GuidedWorkbench({
       return;
     }
     const animation = ghost.animate(
-      snackFlightFrames(flight.from, target.getBoundingClientRect()),
-      { duration: 480, easing: "ease-in-out", fill: "forwards" },
+      snackFlightFrames(
+        flight.from,
+        target.getBoundingClientRect(),
+        flight.lift,
+      ),
+      { duration: flight.duration, easing: "ease-in-out", fill: "forwards" },
     );
     animation.onfinish = arrive;
     return () => {
@@ -143,7 +178,7 @@ export default function GuidedWorkbench({
       animation.cancel();
     };
   }, [flight]);
-  function transfer(id) {
+  function transfer(id, options = {}) {
     if (
       flightLock.current ||
       done ||
@@ -151,14 +186,20 @@ export default function GuidedWorkbench({
       !sourceIds.includes(id)
     )
       return;
-    const from = sources.current.get(id)?.getBoundingClientRect();
+    const from =
+      options.from || sources.current.get(id)?.getBoundingClientRect();
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (from && !reduceMotion) {
       flightLock.current = true;
       setLanded(null);
-      setFlight({ from, index: destCount });
+      setFlight({
+        from,
+        index: destCount,
+        duration: options.duration || 480,
+        lift: options.lift ?? 38,
+      });
     } else setLanded(destCount);
     setSelected(null);
     chime();
@@ -227,8 +268,12 @@ export default function GuidedWorkbench({
       className="bk-workbench"
       data-moving={!!flight}
       onPointerDown={touch}
+      onPointerDownCapture={touchDrag.onNewInput}
+      onKeyDownCapture={touchDrag.onNewInput}
+      onClickCapture={touchDrag.onClickCapture}
       onKeyDown={touch}
     >
+      {touchDrag.ghost}
       {flight &&
         createPortal(
           <span
@@ -264,6 +309,7 @@ export default function GuidedWorkbench({
       {demo ? (
         <Demo
           item={task.item}
+          touchMode={touchMode}
           name={task.name}
           destination={task.destination}
           say={say}
@@ -289,11 +335,23 @@ export default function GuidedWorkbench({
                       else sources.current.delete(id);
                     }}
                     disabled={!!flight}
-                    className={`bk-token ${selected === id ? "selected" : ""} ${guide.target === "source" && i === 0 ? "bk-guided glowing" : ""}${done && task.type === "take" ? countableClass(i) : ""}`}
+                    className={`bk-token ${touchDrag.draggingId === id ? "bk-being-dragged" : ""} ${selected === id ? "selected" : ""} ${guide.target === "source" && i === 0 ? "bk-guided glowing" : ""}${done && task.type === "take" ? countableClass(i) : ""}`}
                     aria-label={`選取${task.name} ${id + 1}`}
                     aria-pressed={selected === id}
-                    draggable={!done}
+                    onPointerDown={(event) =>
+                      touchDrag.onPointerDown(event, id)
+                    }
+                    onPointerMove={touchDrag.onPointerMove}
+                    onPointerUp={touchDrag.onPointerUp}
+                    onPointerCancel={touchDrag.onPointerCancel}
+                    onLostPointerCapture={touchDrag.onPointerCancel}
+                    onContextMenu={(event) => event.preventDefault()}
+                    draggable={!done && !dragging}
                     onDragStart={(event) => {
+                      if (touchDrag.isTouchSession()) {
+                        event.preventDefault();
+                        return;
+                      }
                       event.dataTransfer.setData("text/plain", String(id));
                       setSelected(id);
                     }}
@@ -316,14 +374,19 @@ export default function GuidedWorkbench({
                 {!sourceIds.length && <span className="bk-empty">✨</span>}
               </div>
               <span className="bk-zone-note">
-                {task.type === "take" ? `送出 ${task.change} 個` : "點一個點心"}
+                {task.type === "take"
+                  ? `送出 ${task.change} 個`
+                  : touchMode
+                    ? "按住點心，直接拖曳"
+                    : "點一個點心"}
               </span>
             </section>
             <span className="bk-transfer-arrow" aria-hidden="true">
               →
             </span>
             <section
-              className={`bk-destination-zone ${done && task.type !== "take" ? "bk-count-target" : ""}`}
+              ref={dropZone}
+              className={`bk-destination-zone ${dragging ? "bk-touch-target" : ""} ${touchDrag.overDrop ? "bk-touch-over" : ""} ${done && task.type !== "take" ? "bk-count-target" : ""}`}
               aria-label={task.destination}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
@@ -381,7 +444,9 @@ export default function GuidedWorkbench({
               <span className="bk-zone-note">
                 {task.type === "fill"
                   ? `${task.target} 個位置`
-                  : "再點盤子放進來"}
+                  : touchMode
+                    ? "拖進這裡，再放開"
+                    : "再點盤子放進來"}
               </span>
             </section>
           </div>
@@ -398,7 +463,11 @@ export default function GuidedWorkbench({
                     : "這邊共有幾個？"}
               </h3>
               {task.type === "fill" ? (
-                <button className="bk-primary bk-guided" onClick={finish}>
+                <button
+                  className="bk-primary bk-guided"
+                  aria-label="補滿了！看看發生什麼事 ✨"
+                  onClick={finish}
+                >
                   補滿了！看看發生什麼事 ✨
                 </button>
               ) : (
