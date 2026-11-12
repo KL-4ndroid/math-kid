@@ -38,7 +38,10 @@ try {
       await page.getByRole('button', { name: '繼續上次的小幫忙' }).click();
       await page.getByRole('button', { name: '收下禮物，回到麵包店' }).click();
       const reward = rewards.find(value => value.id === episode.reward);
-      await page.getByRole('button', { name: reward.name, exact: false }).click();
+      if (reward.id === 'sign') {
+        await page.getByRole('button', { name: '把狐狸招牌掛在店門上方', exact: true }).focus();
+        await page.keyboard.press('Enter');
+      } else await page.getByRole('button', { name: reward.name, exact: false }).click();
       assert((await readProgress(page)).placed.includes(reward.id));
       await page.getByRole('button', { name: '故事冒險', exact: true }).click();
     }
@@ -104,15 +107,54 @@ try {
         const answer = touchPage.getByRole('button', { name: '答案 3', exact: true });
         await answer.scrollIntoViewIfNeeded();
         await touchPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        await answer.focus();
-        await touchPage.keyboard.press('Enter');
+        const beforeAnswer = await readProgress(touchPage);
+        const box = await answer.boundingBox();
+        const session = await touchPage.context().newCDPSession(touchPage);
+        await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+        await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+        await session.detach();
+        assert.deepEqual(await readProgress(touchPage), beforeAnswer, 'cancelled answer touch must preserve progress');
+        await answer.tap();
         await touchPage.waitForFunction(() => JSON.parse(localStorage.getItem('magic-math-bakery-v1')).active.phase === 'success', null, { timeout: 3000 });
       }
       await touchPage.getByRole('button', { name: step ? '看看故事結尾' : '接著幫下一個忙' }).tap();
     }
     await touchPage.getByRole('button', { name: '收下禮物，回到麵包店' }).tap();
     assert((await readProgress(touchPage)).completed.includes('opening'));
-    console.log(`PASS ${viewport.width}×${viewport.height}: opening story with simulated touch drag/tap movement and keyboard numeric answer`);
+    await touchPage.locator('.bk-scene-3d').scrollIntoViewIfNeeded();
+    await touchPage.waitForFunction(() => document.querySelector('canvas')?.width > 300);
+    await touchPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const signPoints = await touchPage.evaluate(async () => {
+      const { PerspectiveCamera, Vector3 } = await import('/node_modules/three/build/three.module.js');
+      const rect = document.querySelector('canvas').getBoundingClientRect();
+      const camera = new PerspectiveCamera(38, rect.width / rect.height, 0.1, 1000);
+      camera.position.set(0, 4, 12);
+      camera.lookAt(0, 1.2, 1);
+      camera.updateMatrixWorld();
+      return [[0, 0.85, 3.5], [0, 2.85, 2.65], [2.7, 1, 2.65]].map(position => {
+        const point = new Vector3(...position).project(camera);
+        return { x: rect.left + (point.x + 1) * rect.width / 2, y: rect.top + (1 - point.y) * rect.height / 2 };
+      });
+    });
+    const signSession = await touchPage.context().newCDPSession(touchPage);
+    const dragSign = async (target, cancel = false) => {
+      await signSession.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [signPoints[0]] });
+      for (let i = 1; i <= 10; i++) await signSession.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: signPoints[0].x + (target.x - signPoints[0].x) * i / 10, y: signPoints[0].y + (target.y - signPoints[0].y) * i / 10 }] });
+      await signSession.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] });
+    };
+    await dragSign(signPoints[1], true);
+    assert.deepEqual((await readProgress(touchPage)).placed, []);
+    await dragSign(signPoints[2]);
+    assert.deepEqual((await readProgress(touchPage)).placed, []);
+    if (viewport.width < 600) {
+      await touchPage.touchscreen.tap(signPoints[0].x, signPoints[0].y);
+      await touchPage.touchscreen.tap(signPoints[1].x, signPoints[1].y);
+    } else await dragSign(signPoints[1]);
+    await signSession.detach();
+    await touchPage.waitForFunction(() => JSON.parse(localStorage.getItem('magic-math-bakery-v1')).placed.includes('sign'));
+    await touchPage.reload();
+    assert((await readProgress(touchPage)).placed.includes('sign'));
+    console.log(`PASS ${viewport.width}×${viewport.height}: opening story with touch dragging, tap placement, cancelled answer, numeric answer, reward claim and persistent 3D sign installation`);
     await touchPage.close();
   }
   const direct = await browser.newPage({ viewport: { width: 1100, height: 900 } });

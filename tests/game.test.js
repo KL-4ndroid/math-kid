@@ -23,6 +23,16 @@ test('responsive source targets meet 56 CSS pixels and keep neighboring centers 
   }
 });
 
+test('reward installation requires ownership and is idempotent', () => {
+  const fresh = freshProgress();
+  assert.equal(transition(fresh, { type: 'install', id: 'sign' }), fresh);
+  const owned = { ...fresh, completed: ['opening'] };
+  const installed = transition(owned, { type: 'install', id: 'sign' });
+  assert.deepEqual(installed.placed, ['sign']);
+  assert.equal(transition(installed, { type: 'install', id: 'sign' }), installed);
+  assert.deepEqual(validateProgress(JSON.parse(JSON.stringify(installed))).placed, ['sign']);
+});
+
 test('all ten tasks have stable model and scene identifiers', () => {
   assert.equal(taskInventory.length, 10);
   assert.equal(new Set(taskInventory.map(t => t.id)).size, 10);

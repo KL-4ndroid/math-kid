@@ -51,6 +51,9 @@ export function transition(progress, action) {
       if (!mission || active.phase !== 'ending') return progress;
       return { ...progress, completed: [...new Set([...progress.completed, mission.episode.id])], active: null };
     }
+    case 'install':
+      if (!ownedRewards(progress).includes(action.id) || progress.placed.includes(action.id)) return progress;
+      return { ...progress, placed: [...progress.placed, action.id] };
     case 'place':
       if (!ownedRewards(progress).includes(action.id)) return progress;
       return { ...progress, placed: progress.placed.includes(action.id) ? progress.placed.filter(id => id !== action.id) : [...progress.placed, action.id] };

@@ -29,6 +29,8 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
   voiceEnabled.current = enabled && progress.voice;
   const heading = useRef();
   const busyRef = useRef(false);
+  const answerTouch = useRef(null);
+  const answerCards = useRef(null);
   const mission = currentMission(progress);
   const active = progress.active;
   const playing = inStory && mission;
@@ -54,6 +56,14 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
     heading.current?.focus();
     return () => { clearTimers(); stopSpeaking(); };
   }, [key]);
+  useEffect(() => {
+    const cards = answerCards.current;
+    const preventCompatibilityClick = event => {
+      if (answerTouch.current) event.preventDefault();
+    };
+    cards?.addEventListener('touchend', preventCompatibilityClick, { passive: false });
+    return () => cards?.removeEventListener('touchend', preventCompatibilityClick);
+  }, [key, active?.moved.length, busy, demo]);
   useEffect(() => {
     if (!enabled || !progress.voice) return;
     const timer = setTimeout(() => { if (!countingRef.current) speak(text); }, 200);
@@ -133,6 +143,11 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
   }
   const done = task && active.moved.length === taskGoal(task);
   const colors = { sage: '#8fb39a', rose: '#d994a1', honey: '#dfb866' };
+  const installSign = page === 'decorate' && ownedRewards(progress).includes('sign') && !progress.placed.includes('sign');
+  function installFoxSign() {
+    dispatch({ type: 'install', id: 'sign' });
+    setMessage('狐狸招牌掛好了！這是我們一起開的小店。');
+  }
   return <div className="bakery-shell">
     <header className="bakery-header"><button onClick={returnHome}>回到麵包店</button><strong>阿栗的麵包店</strong><button aria-pressed={progress.voice} onClick={() => { activate(); stopSpeaking(); dispatch({ type: 'voice' }); }}>{progress.voice ? '聲音開啟' : '聲音關閉'}</button></header>
     <div className="bakery-content">
@@ -145,12 +160,28 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
           <Workbench3D key={`${active.episodeId}-${active.step}`} task={task} active={active} itemId={mission.itemId} scene={mission.scene} say={say} busy={busy || counting || demo} demo={demo} countIndex={countIndex} onBusy={value => { busyRef.current = value; setBusy(value); }} onMove={id => { if (!busyRef.current && !counting && !demo) { setActivity(n => n + 1); dispatch({ type: 'move', id }); } }} />
           <div className="controls"><button disabled={busy || counting} onClick={() => { stopSpeaking(); setDemo(v => !v); }}>{demo ? '換我玩' : '看我做'}</button><button disabled={busy || counting || demo || !done} onClick={count}>一起數一數</button><button disabled={busy} onClick={() => say(`先選一個${task.name}，再點${task.destination}。也可以直接拖過去。`)}>再聽操作方法</button></div>
           {done && !busy && !demo && <section className="answer-panel"><h2>{task.type === 'fill' ? '空位都補滿了！' : task.type === 'take' ? `${task.source}還剩幾個？` : `${task.destination}共有幾個？`}</h2>
-            {task.type === 'fill' ? <button className="primary" disabled={counting} onClick={() => answer(taskAnswer(task))}>補滿了，看看接下來的故事</button> : <div className="number-cards">{[1, 2, 3, 4, 5].map(n => <button key={n} aria-label={`答案 ${n}`} disabled={counting} onClick={() => answer(n)}><strong>{n}</strong><span aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} />)}</span></button>)}</div>}
+            {task.type === 'fill' ? <button className="primary" disabled={counting} onClick={() => answer(taskAnswer(task))}>補滿了，看看接下來的故事</button> : <div className="number-cards" ref={answerCards}>{[1, 2, 3, 4, 5].map(n => <button key={n} aria-label={`答案 ${n}`} disabled={counting} onTouchStart={event => {
+                const touch = event.touches[0];
+                answerTouch.current = event.touches.length === 1 ? { id: touch.identifier, value: n, x: touch.clientX, y: touch.clientY } : null;
+              }} onTouchMove={event => {
+                const start = answerTouch.current;
+                const touch = Array.from(event.touches).find(value => value.identifier === start?.id);
+                if (!touch || event.touches.length !== 1 || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 8) answerTouch.current = null;
+              }} onTouchCancel={() => { answerTouch.current = null; }} onTouchEnd={event => {
+                const start = answerTouch.current;
+                answerTouch.current = null;
+                const touch = Array.from(event.changedTouches).find(value => value.identifier === start?.id);
+                if (!start || !touch || start.value !== n || event.touches.length || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 8) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                if (touch.clientX < rect.left || touch.clientX > rect.right || touch.clientY < rect.top || touch.clientY > rect.bottom) return;
+                answer(n);
+              }} onClick={() => answer(n)}><strong>{n}</strong><span aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} />)}</span></button>)}</div>}
           </section>}
         </> : phase === 'intro' ? <><SceneBoundary><BakeryScene color={colors[progress.color]} placed={progress.placed} /></SceneBoundary><button className="primary" onClick={() => dispatch({ type: 'play' })}>我來幫忙</button></> : phase === 'success' ? <section className="success"><h2>你做到了！</h2><p className="equation">{task.initial} {task.type === 'take' ? '−' : '＋'} {taskGoal(task)} ＝ {taskAnswer(task)}</p><p>{taskExplanation(task)}</p><button className="primary" onClick={() => dispatch({ type: 'next' })}>{active.step === 0 ? '接著幫下一個忙' : '看看故事結尾'}</button></section> : <section className="success"><h2>謝謝你，小小麵包師！</h2><p>朋友送你「{rewards.find(r => r.id === mission.episode.reward)?.name}」。</p><button className="primary" onClick={() => { dispatch({ type: 'claim' }); setInStory(false); setPage('decorate'); setMessage('禮物已收到，點一下就能擺放。'); }}>收下禮物，回到麵包店</button></section>}
       </> : <>
         <nav className="activity-tabs" aria-label="麵包店活動">{[['story', '故事冒險'], ['decorate', '布置小店'], ['free', '自由烘焙'], ['settings', '家長設定']].map(([id, label]) => <button key={id} aria-current={page === id ? 'page' : undefined} onClick={() => { activate(); stopSpeaking(); setPage(id); setFreeCount(0); }}>{label}</button>)}</nav>
-        {page !== 'settings' && <SceneBoundary><BakeryScene color={colors[progress.color]} placed={progress.placed} freeCount={page === 'free' ? freeCount : null} freeItem={freeItem} /></SceneBoundary>}
+        {page !== 'settings' && <SceneBoundary><BakeryScene key={installSign ? 'install-sign' : 'overview'} installSign={installSign} onInstallSign={installFoxSign} color={colors[progress.color]} placed={progress.placed} freeCount={page === 'free' ? freeCount : null} freeItem={freeItem} /></SceneBoundary>}
+        {installSign && <section className="success" aria-label="安裝狐狸招牌"><h2>把狐狸招牌掛起來</h2><p>把前面的招牌拖到店門上方，也可以點招牌，再點綠色掛牌位置。</p><button className="primary" onClick={installFoxSign}>把狐狸招牌掛在店門上方</button></section>}
         {page === 'story' && <><div className="welcome"><p>從第一爐麵包到星光慶典，把點心合起來、分享出去，讓小店慢慢熱鬧起來。</p>{active ? <button className="primary" onClick={() => start(active.episodeId)}>繼續上次的小幫忙</button> : progress.completed.length < 5 ? <button className="primary" onClick={() => start(episodes[progress.completed.length].id)}>和阿栗一起開始</button> : <h2>我們的店，開張了！</h2>}<small>沒有倒數、不扣分，隨時都能休息。</small></div>
           <div className="episode-list">{episodes.map((ep, i) => <button key={ep.id} disabled={i > progress.completed.length} onClick={() => start(ep.id)}><small>第 {i + 1} 段 · {ep.place}</small><strong>{ep.title}</strong><span>{i > progress.completed.length ? '完成前面的故事後開啟' : progress.completed.includes(ep.id) ? '再玩一次' : '故事準備好了'}</span></button>)}</div></>}
         {page === 'decorate' && <><h2>我的店，我來布置</h2><div className="controls">{[['sage', '薄荷綠'], ['rose', '草莓粉'], ['honey', '蜂蜜黃']].map(([value, label]) => <button key={value} aria-pressed={progress.color === value} style={{ background: colors[value] }} onClick={() => dispatch({ type: 'color', value })}>{label}</button>)}</div><div className="episode-list">{rewards.map(r => <button key={r.id} disabled={!ownedRewards(progress).includes(r.id)} aria-pressed={progress.placed.includes(r.id)} onClick={() => dispatch({ type: 'place', id: r.id })}><strong>{r.name}</strong><span>{!ownedRewards(progress).includes(r.id) ? '完成故事後收到' : progress.placed.includes(r.id) ? '已擺放，點一下收起' : `放在${r.location}`}</span></button>)}</div></>}
