@@ -66,7 +66,13 @@ export function validateProgress(raw) {
   }
   return result;
 }
-export function useBakeryProgress() {
+export function useBakeryProgress({ canSave = () => true } = {}) {
+  const [writable] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(BAKERY_KEY));
+      return !raw || !(raw.version > 1);
+    } catch { return false; }
+  });
   const [progress, setProgress] = useState(() => {
     try {
       return validateProgress(JSON.parse(localStorage.getItem(BAKERY_KEY)));
@@ -76,12 +82,13 @@ export function useBakeryProgress() {
   });
   const [saved, setSaved] = useState(true);
   useEffect(() => {
+    if (!writable || !canSave()) { setSaved(false); return; }
     try {
       localStorage.setItem(BAKERY_KEY, JSON.stringify(progress));
       setSaved(true);
     } catch {
       setSaved(false);
     }
-  }, [progress]);
+  }, [progress, writable, canSave]);
   return [progress, setProgress, saved];
 }

@@ -94,6 +94,25 @@ button[aria-pressed="true"] {
   white-space: nowrap;
   border: 0;
 }
+.world-gateway {
+  padding-block: 24px;
+}
+.world-gateway .bk-scene-3d {
+  border-radius: 28px;
+}
+.world-actions,
+.completed-actions,
+.ending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+.adventure-storage-status {
+  margin: 0;
+  padding: 16px 20px;
+  background: #f7ecd5;
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

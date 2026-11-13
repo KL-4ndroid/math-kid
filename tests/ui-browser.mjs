@@ -82,6 +82,7 @@ try {
     });
     async function load(progress) {
       await page.goto(server.resolvedUrls.local[0]);
+      await page.getByRole('button', { name: '家長設定', exact: true }).waitFor();
       await page.evaluate(
         (value) =>
           localStorage.setItem("magic-math-bakery-v1", JSON.stringify(value)),
@@ -144,6 +145,31 @@ try {
       ),
       5,
     );
+    const beforeNavigation = await page.evaluate(() => localStorage.getItem('magic-math-bakery-v1'));
+    await page.getByRole('button', { name: '故事群島', exact: true }).tap();
+    await page.getByRole('heading', { name: '熟悉的小店，隨時歡迎你' }).waitFor();
+    assert.equal(await page.locator('canvas').count(), 1);
+    assert.equal(await page.getByRole('button', { name: '帶點心去看森林朋友' }).count(), 0);
+    await page.getByRole('button', { name: '今天先休息', exact: true }).tap();
+    await page.getByRole('heading', { name: '今天先休息' }).waitFor();
+    assert.equal(await page.locator('canvas').count(), 0);
+    await page.getByRole('button', { name: '回麵包店', exact: true }).tap();
+    await page.getByRole('button', { name: '家長設定', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('magic-math-bakery-v1')), beforeNavigation);
+    await page.evaluate(() => {
+      localStorage.setItem('magic-math-world-v1', JSON.stringify({ version: 1, resetIntent: { id: 'browser_confirmed_reset', scope: 'adventure' } }));
+    });
+    await page.reload();
+    await page.getByRole('button', { name: '和阿栗一起開始', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('magic-math-bakery-v1')).completed.length), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('magic-math-world-v1')).resetIntent), null);
+    await page.evaluate(() => localStorage.setItem('magic-math-world-v1', JSON.stringify({ version: 99, future: 'preserve' })));
+    await page.reload();
+    await page.getByText('這份冒險進度來自較新的版本', { exact: false }).waitFor();
+    const protectedBakery = await page.evaluate(() => localStorage.getItem('magic-math-bakery-v1'));
+    await page.getByRole('button', { name: '和阿栗一起開始', exact: true }).tap();
+    assert.equal(await page.evaluate(() => localStorage.getItem('magic-math-bakery-v1')), protectedBakery);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('magic-math-world-v1')).future), 'preserve');
     assert.deepEqual(errors, []);
     console.log(
       `PASS ${viewport.width}×${viewport.height}: quantity card size, layout, success/ending voice replay, complete-story free-play entry and saved progress`,

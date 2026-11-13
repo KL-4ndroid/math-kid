@@ -20,7 +20,7 @@ import "./BakeryChapter.css";
 import UiIcon from "./UiIcon.jsx";
 import { taskObjective } from "./guidance.js";
 
-export default function BakeryChapter({ progress, setProgress, saved }) {
+export default function BakeryChapter({ progress, setProgress, saved, onResetAdventure, onVisitIsland, worldStatus }) {
   const [page, setPage] = useState("story");
   const [inStory, setInStory] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -564,19 +564,26 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
                   <h2>謝謝你，小小麵包師！</h2>
                   <p>{text}</p>
                   <div className="success-replay">{replayControl}</div>
-                  <button
-                    className="primary next-button"
-                    aria-label="收下禮物，回到麵包店"
-                    onClick={() => {
-                      dispatch({ type: "claim" });
-                      setInStory(false);
-                      setPage("decorate");
-                      setMessage("禮物已收到，點一下就能擺放。");
-                    }}
-                  >
-                    收下禮物
-                    <UiIcon name="gift" />
-                  </button>
+                  <div className="ending-actions">
+                    <button
+                      className="primary next-button"
+                      aria-label="收下禮物，回到麵包店"
+                      onClick={() => {
+                        dispatch({ type: "claim" });
+                        setInStory(false);
+                        setPage("decorate");
+                        setMessage("禮物已收到，點一下就能擺放。");
+                      }}
+                    >
+                      收下禮物
+                      <UiIcon name="gift" />
+                    </button>
+                    {mission.episode.id === "party" && worldStatus?.forestAvailable && onVisitIsland && (
+                      <button onClick={() => { dispatch({ type: "claim" }); onVisitIsland(); }}>
+                        帶點心去看森林朋友
+                      </button>
+                    )}
+                  </div>
                 </section>
               )}
             </>
@@ -617,13 +624,12 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
                         </button>
                       )}
                       {!nextEpisode && (
-                        <button
-                          className="primary next-button"
-                          onClick={() => changePage("free")}
-                        >
-                          <UiIcon name="oven" />
-                          一起烤點心
-                        </button>
+                        <div className="completed-actions">
+                          <button className="primary next-button" onClick={() => changePage("free")}>
+                            <UiIcon name="oven" />一起烤點心
+                          </button>
+                          {onVisitIsland && <button className="utility-button" onClick={onVisitIsland}>故事群島</button>}
+                        </div>
                       )}
                     </div>
                   )}
@@ -806,6 +812,7 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
                 <UiIcon name="settings" />
                 家長設定
               </button>
+              {onVisitIsland && <button onClick={onVisitIsland}>故事群島</button>}
               <span>
                 {saved ? "進度已保存在這個瀏覽器" : "進度暫存在記憶體"}
               </span>
@@ -822,12 +829,12 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
         >
           <h2>
             {confirm.type === "reset"
-              ? "確定清除麵包店進度？"
+              ? (onResetAdventure ? "確定清除整個冒險進度？" : "確定清除麵包店進度？")
               : "要放下目前的小幫忙，改玩另一段故事嗎？"}
           </h2>
           <p>
             {confirm.type === "reset"
-              ? "故事、裝飾和設定都會重設。"
+              ? (onResetAdventure ? "麵包店與森林的整個冒險、裝飾和設定都會重設。" : "故事、裝飾和設定都會重設。")
               : "已獲得的禮物會保留，目前任務需重新開始。"}
           </p>
           <div className="controls">
@@ -837,7 +844,8 @@ export default function BakeryChapter({ progress, setProgress, saved }) {
             <button
               onClick={() => {
                 if (confirm.type === "reset") {
-                  setProgress(freshProgress());
+                  if (onResetAdventure) onResetAdventure();
+                  else setProgress(freshProgress());
                   returnHome();
                 } else {
                   setProgress((p) =>
