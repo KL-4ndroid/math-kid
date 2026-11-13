@@ -2,7 +2,7 @@
 
 給 4–6 歲孩子的 3D 數學故事世界，使用 React、Vite、Three.js、React Three Fiber 與 Drei。目前可玩內容是第一座島「阿栗的麵包店」，包含五段短故事與十個任務。整體世界以角色互助與修復家園連接森林、城堡、牧場及彩虹橋，最終讓天空花園開花。
 
-世界路線與原始規劃對照見 [WORLD_DESIGN.md](WORLD_DESIGN.md)，共同 3D 標準與首島精確規則見 [DEVELOPMENT_SPEC.md](DEVELOPMENT_SPEC.md)，首島 P0–P7 驗收及世界 W0–W7 擴展計畫見 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)。其他島、世界地圖、天空小屋、重玩變式及家長摘要仍是規劃，尚未新增到遊戲；舊版單題小島與刷題星星介面維持退役。
+世界路線與原始規劃對照見 [WORLD_DESIGN.md](WORLD_DESIGN.md)，共同 3D 標準與首島精確規則見 [DEVELOPMENT_SPEC.md](DEVELOPMENT_SPEC.md)，首島 P0–P7 驗收及世界 W0–W7 擴展計畫見 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)。目前已有故事群島入口與森林車站預覽，森林仍未開放遊玩；完整世界地圖、其餘島的可玩故事、天空小屋、重玩變式及家長摘要仍在後續計畫；舊版單題小島與刷題星星介面維持退役。
 
 ## 交給 Cursor 或其他開發者
 
@@ -21,6 +21,7 @@ npm test
 npm run test:browser
 npm run test:sample
 npm run test:ui
+npm run test:reliability
 npm run build
 npm run preview
 ```
@@ -31,9 +32,12 @@ npm run preview
 BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser
 BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:sample
 BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:ui
+BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:reliability
 ```
 
 `test:browser` 驗證十個任務、續玩、輔助操作、減少動態觸控與中斷情境；`test:sample` 專測一般動態下，首段故事及招牌的原生觸控事件流程。`test:ui` 檢查四種尺寸的數字卡、成功／結尾重聽與通關後自由烘焙入口；極矮視窗允許捲動。可用 `npm run test:browser -- --input-only` 單獨重跑觸控、滑鼠、語音與 WebGL 備援分段，亦可用 `--desktop-only` 單獨檢查滑鼠、語音與 WebGL 備援。預設命令仍包含所有分段及十任務回歸。
+
+`test:reliability` 重現並保護損壞存檔的確認重設／續玩、真實雙分頁 clear／更新、持續暫停舊分頁寫入及未知較新版本保護；另以 React harness 檢查 inline 回呼、拖曳中重繪及取消。保存案例使用無 WebGL 的輔助操作隔離繪圖時序，真正的 3D 觸控仍由 test:sample／test:browser 驗證。最新修復與實測結果見 [開發計畫 18.9](DEVELOPMENT_PLAN.md#189-審查缺陷修復與可玩版本交付2026-11-13)。
 
 ## 已接入的功能
 
@@ -46,6 +50,7 @@ BAKERY_EXECUTABLE_PATH=/usr/bin/chromium npm run test:ui
 - 五件固定位置裝飾、三種遮陽棚顏色、0–5 個點心的自由烘焙。
 - 沿用 `magic-math-bakery-v1`，保存合法舊進度、任務搬運、裝飾及聲音偏好。
 - 返回續玩、重設二次確認、靜音與減少動態支援。
+- 世界保存／整個冒險重設的恢復與版本保護、故事群島切換、森林車站預覽；森林主線仍未開放。
 - WebGL 無法顯示時可使用輔助控制繼續任務；完整預渲染美術備援尚未完成。
 
 ## 目前首島驗證與限制

@@ -67,12 +67,6 @@ export function validateProgress(raw) {
   return result;
 }
 export function useBakeryProgress({ canSave = () => true } = {}) {
-  const [writable] = useState(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(BAKERY_KEY));
-      return !raw || !(raw.version > 1);
-    } catch { return false; }
-  });
   const [progress, setProgress] = useState(() => {
     try {
       return validateProgress(JSON.parse(localStorage.getItem(BAKERY_KEY)));
@@ -82,13 +76,23 @@ export function useBakeryProgress({ canSave = () => true } = {}) {
   });
   const [saved, setSaved] = useState(true);
   useEffect(() => {
-    if (!writable || !canSave()) { setSaved(false); return; }
+    if (!canSave()) {
+      setSaved(false);
+      return;
+    }
     try {
+      // A confirmed reset can replace a corrupt file with valid v1 data in this session.
+      // Recheck on every write so recovery works without weakening newer-version protection.
+      const stored = JSON.parse(localStorage.getItem(BAKERY_KEY));
+      if (stored?.version > 1) {
+        setSaved(false);
+        return;
+      }
       localStorage.setItem(BAKERY_KEY, JSON.stringify(progress));
       setSaved(true);
     } catch {
       setSaved(false);
     }
-  }, [progress, writable, canSave]);
+  }, [progress, canSave]);
   return [progress, setProgress, saved];
 }
