@@ -1,4 +1,4 @@
-import { Component, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Plane, Vector3 } from "three";
 import { Fox } from "./FoxModel.jsx";
@@ -9,41 +9,9 @@ import { taskGoal } from "./chapter.js";
 import { StorySet } from "./StorySet.jsx";
 import { workbenchLayout, slotPoint } from "./layout.js";
 
-function ContextGuard({ onLost }) {
-  const { gl } = useThree();
-  useLayoutEffect(() => {
-    const lost = (event) => {
-      event.preventDefault();
-      onLost();
-    };
-    gl.domElement.addEventListener("webglcontextlost", lost);
-    gl.domElement.dataset.bakeryContextReady = "true";
-    return () => {
-      gl.domElement.removeEventListener("webglcontextlost", lost);
-      delete gl.domElement.dataset.bakeryContextReady;
-    };
-  }, [gl, onLost]);
-  return null;
-}
-
-export class SceneBoundary extends Component {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  componentDidCatch() {
-    this.props.onError?.();
-  }
-  render() {
-    return this.state.failed ? (
-      <p role="status">
-        3D 場景暫時無法顯示。可以使用頁面的輔助操作繼續，進度會照常保存。
-      </p>
-    ) : (
-      this.props.children
-    );
-  }
-}
+import { ContextGuard, SceneBoundary } from "../shared/interaction/SceneBoundary.jsx";
+import { useObjectPlacement } from "../shared/interaction/useObjectPlacement.js";
+export { SceneBoundary } from "../shared/interaction/SceneBoundary.jsx";
 
 function FlyingSnack({ flight, itemId, onArrive }) {
   const ref = useRef();
@@ -147,10 +115,7 @@ function Board({
     camera.lookAt(0, 1.2, 0);
     camera.updateProjectionMatrix();
   }, [camera, size.width]);
-  const drag = useRef(null);
   const plane = new Plane(new Vector3(0, 1, 0), -1.35);
-  const ghost = useRef();
-  const [dragId, setDragId] = useState(null);
   const sources = availableSource(task, moved);
   const hitRadius = layout.hitRadius;
   const destinationCount =
@@ -159,29 +124,7 @@ function Board({
     new Vector3(...slotPoint(layout, layout.source, id));
   const targetPosition = (i) =>
     new Vector3(...slotPoint(layout, layout.target, i));
-  useEffect(() => {
-    const cancel = () => {
-      drag.current = null;
-      setDragId(null);
-      onSelect(null);
-    };
-    window.addEventListener("blur", cancel);
-    window.addEventListener("pointercancel", cancel);
-    const multi = (e) => {
-      if (!e.isPrimary) cancel();
-    };
-    window.addEventListener("pointerdown", multi);
-    return () => {
-      cancel();
-      window.removeEventListener("blur", cancel);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("pointerdown", multi);
-    };
-  }, []);
   const lock = useRef(false);
-  useEffect(() => {
-    if (!flight) lock.current = false;
-  }, [flight]);
   const transfer = (id, from) => {
     if (lock.current || disabled || !sources.includes(id)) return;
     lock.current = true;
@@ -189,16 +132,15 @@ function Board({
     onMove(id);
     onSelect(null);
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      setFlight({
-        id,
-        index,
-        from: from || sourcePosition(id),
-        to: targetPosition(index),
-      });
+      setFlight({ id, index, from: from || sourcePosition(id), to: targetPosition(index) });
     else lock.current = false;
   };
-  const ghostPoint = drag.current?.point?.clone();
-  if (ghostPoint) ghostPoint.y += 0.3;
+  const placement = useObjectPlacement({
+    disabled, sourcePosition, plane, onSelect, onDrop: transfer,
+    acceptsDrop: (id, point) => Boolean(point && sources.includes(id) && Math.abs(point.x - layout.target[0]) < layout.dropHalf.x && Math.abs(point.z - layout.target[2]) < layout.dropHalf.z),
+  });
+  const { dragId, ghost, ghostPoint, sourceHandlers } = placement;
+  useEffect(() => { if (!flight) lock.current = false; }, [flight]);
   return (
     <>
       <StorySet
@@ -253,69 +195,8 @@ function Board({
         <meshBasicMaterial />
       </mesh>
       {sources.map((id, i) => (
-        <group
-          key={id}
-          position={sourcePosition(id)}
-          onLostPointerCapture={() => {
-            if (drag.current) {
-              drag.current = null;
-              setDragId(null);
-              onSelect(null);
-            }
-          }}
-          onPointerDown={(e) => {
-            if (disabled || !e.nativeEvent.isPrimary || e.button !== 0) return;
-            e.stopPropagation();
-            drag.current = {
-              id,
-              pointer: e.pointerId,
-              x: e.nativeEvent.clientX,
-              y: e.nativeEvent.clientY,
-              moved: false,
-              point: sourcePosition(id),
-            };
-            e.target.setPointerCapture(e.pointerId);
-            onSelect(id);
-          }}
-          onPointerMove={(e) => {
-            const d = drag.current;
-            if (!d || d.pointer !== e.pointerId) return;
-            if (
-              Math.hypot(
-                e.nativeEvent.clientX - d.x,
-                e.nativeEvent.clientY - d.y,
-              ) < 8 &&
-              !d.moved
-            )
-              return;
-            d.moved = true;
-            const p = e.ray.intersectPlane(plane, new Vector3());
-            if (p) {
-              d.point = p.clone();
-              if (ghost.current) {
-                ghost.current.position.copy(p);
-                ghost.current.position.y += 0.3;
-              }
-            }
-            setDragId(id);
-          }}
-          onPointerUp={(e) => {
-            const d = drag.current;
-            if (!d || d.pointer !== e.pointerId) return;
-            e.stopPropagation();
-            drag.current = null;
-            setDragId(null);
-            e.target.releasePointerCapture(e.pointerId);
-            if (d.moved) {
-              if (
-                Math.abs(d.point.x - layout.target[0]) < layout.dropHalf.x &&
-                Math.abs(d.point.z - layout.target[2]) < layout.dropHalf.z
-              )
-                transfer(id, d.point);
-              else onSelect(null);
-            }
-          }}
-        >
+        <group key={id} position={sourcePosition(id)} {...sourceHandlers(id)}>
+
           <mesh visible={false}>
             <sphereGeometry args={[hitRadius, 16, 12]} />
             <meshBasicMaterial />

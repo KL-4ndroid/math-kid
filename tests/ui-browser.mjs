@@ -149,6 +149,13 @@ try {
     await page.getByRole('button', { name: '故事群島', exact: true }).tap();
     await page.getByRole('heading', { name: '熟悉的小店，隨時歡迎你' }).waitFor();
     assert.equal(await page.locator('canvas').count(), 1);
+    await page.getByRole('button', { name: '看看森林車站', exact: true }).tap();
+    await page.locator('[aria-label="森林車站場景"] canvas[data-bakery-context-ready="true"]').waitFor();
+    assert.equal(await page.locator('canvas').count(), 1);
+    assert.equal(await page.getByRole('button', { name: '看看森林車站', exact: true }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.getByRole('button', { name: '看看麵包店', exact: true }).tap();
+    assert.equal(await page.locator('[aria-label="森林車站場景"]').count(), 0);
     assert.equal(await page.getByRole('button', { name: '帶點心去看森林朋友' }).count(), 0);
     await page.getByRole('button', { name: '今天先休息', exact: true }).tap();
     await page.getByRole('heading', { name: '今天先休息' }).waitFor();
